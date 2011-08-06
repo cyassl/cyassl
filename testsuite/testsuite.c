@@ -19,9 +19,11 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
-#include "ssl.h"
-#include "cyassl_test.h"
-#include "ctc_md5.h"
+#include <config.h>
+
+#include <openssl/ssl.h>
+#include <openssl/cyassl_test.h>
+#include <cyassl/ctaocrypt/ctc_md5.h>
 
 #ifdef SINGLE_THREADED
     #error testsuite needs threads to run, please run ctaocrypt/test, \
@@ -125,21 +127,22 @@ int main(int argc, char** argv)
         file_test("input",  input);
         file_test("output", output);
         if (memcmp(input, output, sizeof(input)) != 0)
-            return -1;
+            return EXIT_FAILURE;
     }
 
     CyaSSL_Cleanup();
     FreeTcpReady(&ready);
 
     printf("\nAll tests passed!\n");
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 
 
 void wait_tcp_ready(func_args* args)
 {
-#ifdef _POSIX_THREADS
+  if (HAVE_PTHREAD)
+  {
     pthread_mutex_lock(&args->signal->mutex);
     
     if (!args->signal->ready)
@@ -147,49 +150,58 @@ void wait_tcp_ready(func_args* args)
     args->signal->ready = 0; /* reset */
 
     pthread_mutex_unlock(&args->signal->mutex);
-#endif
+  }
 }
 
 
 void start_thread(THREAD_FUNC fun, func_args* args, THREAD_TYPE* thread)
 {
-#ifndef _POSIX_THREADS
-    *thread = (HANDLE)_beginthreadex(0, 0, fun, args, 0, 0);
-#else
+  if (HAVE_PTHREAD)
+  {
     pthread_create(thread, 0, fun, args);
-#endif
+    return;
+  }
+  else
+  {
+    *thread = (THREAD_TYPE)_beginthreadex(0, 0, fun, args, 0, 0);
+  }
 }
 
 
 void join_thread(THREAD_TYPE thread)
 {
-#ifndef _POSIX_THREADS
+  if (HAVE_PTHREAD)
+  {
+    pthread_join(thread, 0);
+  }
+  else
+  {
     int res = WaitForSingleObject(thread, INFINITE);
     assert(res == WAIT_OBJECT_0);
     res = CloseHandle(thread);
     assert(res);
-#else
-    pthread_join(thread, 0);
-#endif
+  }
 }
 
 
 void InitTcpReady(tcp_ready* ready)
 {
     ready->ready = 0;
-#ifdef _POSIX_THREADS
-    pthread_mutex_init(&ready->mutex, 0);
-    pthread_cond_init(&ready->cond, 0);
-#endif
+    if (HAVE_PTHREAD)
+    {
+      pthread_mutex_init(&ready->mutex, 0);
+      pthread_cond_init(&ready->cond, 0);
+    }
 }
 
 
 void FreeTcpReady(tcp_ready* ready)
 {
-#ifdef _POSIX_THREADS
+  if (HAVE_PTHREAD)
+  {
     pthread_mutex_destroy(&ready->mutex);
     pthread_cond_destroy(&ready->cond);
-#endif
+  }
 }
 
 

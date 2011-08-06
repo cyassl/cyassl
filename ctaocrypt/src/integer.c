@@ -19,17 +19,19 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
+#include <config.h>
+
 /*
  * Based on public domain LibTomMath 0.38 by Tom St Denis, tomstdenis@iahu.ca,
  * http://math.libtomcrypt.com
  */
 
 
-#include "ctc_settings.h"     /* in case user set USE_FAST_MATH there */
+#include <cyassl/ctaocrypt/ctc_settings.h>     /* in case user set USE_FAST_MATH there */
 
 #ifndef USE_FAST_MATH
 
-#include "ctc_integer.h"
+#include <cyassl/ctaocrypt/ctc_integer.h>
 
 
 /* handle up to 6 inits */

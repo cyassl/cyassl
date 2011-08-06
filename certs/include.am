@@ -20,3 +20,15 @@ EXTRA_DIST+= \
              certs/server-keyPkcs8Enc2.pem \
              certs/server-keyPkcs8Enc.pem \
              certs/server-keyPkcs8.pem
+
+EXTRA_DIST+= \
+	     certs/ca-key.der \
+	     certs/client-cert.der \
+	     certs/client-key.der \
+	     certs/dh1024.der \
+	     certs/dsa512.der \
+	     certs/ecc-key.der
+
+EXTRA_DIST+= certs/taoCert.txt
+
+EXTRA_DIST+= certs/ntru-key.raw

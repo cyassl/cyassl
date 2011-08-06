@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
-#include "ctc_types.h"
+#include <cyassl/ctaocrypt/ctc_types.h>
 
 #ifdef USE_WINDOWS_API 
     #include <winsock2.h>
@@ -73,14 +73,16 @@
     typedef void*         THREAD_TYPE;
     #define CYASSL_THREAD
 #else
-    #ifndef _POSIX_THREADS
-        typedef unsigned int  THREAD_RETURN;
-        typedef HANDLE        THREAD_TYPE;
-        #define CYASSL_THREAD __stdcall
-    #else
+    #if defined(HAVE_PTHREAD) && HAVE_PTHREAD
         typedef void*         THREAD_RETURN;
         typedef pthread_t     THREAD_TYPE;
         #define CYASSL_THREAD
+        #define INFINITE -1
+        #define WAIT_OBJECT_0 0L
+    #else
+        typedef unsigned int  THREAD_RETURN;
+        typedef HANDLE        THREAD_TYPE;
+        #define CYASSL_THREAD __stdcall
     #endif
 #endif
 

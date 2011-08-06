@@ -43,3 +43,6 @@ NTRU_algorithm/
 build-test/
 build/
 cyassl.xcodeproj/
+cyassl*rc*
+autoscan.log
+TAGS

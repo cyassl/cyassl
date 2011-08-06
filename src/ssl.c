@@ -19,11 +19,19 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
+#include <config.h>
 
-#include "ssl.h"
-#include "cyassl_int.h"
-#include "cyassl_error.h"
-#include "ctc_coding.h"
+#ifdef HAVE_ERRNO_H 
+    #include <errno.h>
+#endif
+
+#define TRUE  1
+#define FALSE 0
+
+#include <openssl/ssl.h>
+#include <cyassl/cyassl_int.h>
+#include <cyassl/cyassl_error.h>
+#include <cyassl/ctaocrypt/ctc_coding.h>
 
 #if defined(OPENSSL_EXTRA) || defined(HAVE_WEBSERVER)
     #include "evp.h"
@@ -40,13 +48,6 @@
     #include "ctc_des3.h"
     #include "ctc_md4.h"
 #endif
-
-#ifdef HAVE_ERRNO_H 
-    #include <errno.h>
-#endif
-
-#define TRUE  1
-#define FALSE 0
 
 
 #ifndef min

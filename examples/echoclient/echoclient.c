@@ -19,8 +19,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
-#include "ssl.h"
-#include "cyassl_test.h"
+#include <config.h>
+
+#include <openssl/ssl.h>
+#include <openssl/cyassl_test.h>
 
 
 void echoclient_test(void* args)

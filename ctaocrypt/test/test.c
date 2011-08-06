@@ -19,35 +19,37 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
+#include <config.h>
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #ifdef CYASSL_TEST_CERT
-    #include "ctc_asn.h"
+    #include <cyassl/ctaocrypt/ctc_asn.h>
 #else
-    #include "ctc_asn_public.h"
+    #include <cyassl/ctaocrypt/ctc_asn_public.h>
 #endif
-#include "ctc_md5.h"
-#include "ctc_md4.h"
-#include "ctc_sha.h"
-#include "ctc_sha256.h"
-#include "ctc_sha512.h"
-#include "ctc_arc4.h"
-#include "ctc_random.h"
-#include "ctc_coding.h"
-#include "ctc_rsa.h"
-#include "ctc_des3.h"
-#include "ctc_aes.h"
-#include "ctc_hmac.h"
-#include "ctc_dh.h"
-#include "ctc_dsa.h"
-#include "ctc_hc128.h"
-#include "ctc_rabbit.h"
-#include "ctc_pwdbased.h"
-#include "ctc_ripemd.h"
+#include <cyassl/ctaocrypt/ctc_md5.h>
+#include <cyassl/ctaocrypt/ctc_md4.h>
+#include <cyassl/ctaocrypt/ctc_sha.h>
+#include <cyassl/ctaocrypt/ctc_sha256.h>
+#include <cyassl/ctaocrypt/ctc_sha512.h>
+#include <cyassl/ctaocrypt/ctc_arc4.h>
+#include <cyassl/ctaocrypt/ctc_random.h>
+#include <cyassl/ctaocrypt/ctc_coding.h>
+#include <cyassl/ctaocrypt/ctc_rsa.h>
+#include <cyassl/ctaocrypt/ctc_des3.h>
+#include <cyassl/ctaocrypt/ctc_aes.h>
+#include <cyassl/ctaocrypt/ctc_hmac.h>
+#include <cyassl/ctaocrypt/ctc_dh.h>
+#include <cyassl/ctaocrypt/ctc_dsa.h>
+#include <cyassl/ctaocrypt/ctc_hc128.h>
+#include <cyassl/ctaocrypt/ctc_rabbit.h>
+#include <cyassl/ctaocrypt/ctc_pwdbased.h>
+#include <cyassl/ctaocrypt/ctc_ripemd.h>
 #ifdef HAVE_ECC
-    #include "ctc_ecc.h"
+    #include <cyassl/ctaocrypt/ctc_ecc.h>
 #endif    
 
 #ifdef _MSC_VER
@@ -180,12 +182,17 @@ void ctaocrypt_test(void* args)
     else
         printf( "ARC4     test passed!\n");
 
-#ifndef NO_HC128
-    if ( (ret = hc128_test()) )
+    if (HAVE_HC128)
+    {
+      if ( (ret = hc128_test()) )
         err_sys("HC-128   test failed!\n", ret);
-    else
+      else
         printf( "HC-128   test passed!\n");
-#endif
+    }
+    else
+    {
+      printf( "HC-128   test skipped!\n");
+    }
 
 #ifndef NO_RABBIT
     if ( (ret = rabbit_test()) )
@@ -743,7 +750,7 @@ int arc4_test()
 }
 
 
-#ifndef NO_HC128
+#if HAVE_HC128
 int hc128_test()
 {
     byte cipher[16];
@@ -816,7 +823,7 @@ int hc128_test()
 
     return 0;
 }
-#endif /* NO_HC128 */
+#endif /* HAVE_HC128 */
 
 
 #ifndef NO_RABBIT
@@ -1044,18 +1051,18 @@ int random_test()
 
 
 #ifndef NO_MAIN_DRIVER
-    static const char* clientKey  = "../../certs/client-key.der";
-    static const char* clientCert = "../../certs/client-cert.der";
+    static const char* clientKey  = "certs/client-key.der";
+    static const char* clientCert = "certs/client-cert.der";
     #ifdef CYASSL_CERT_GEN
-        static const char* caKeyFile  = "../../certs/ca-key.der";
-        static const char* caCertFile = "../../certs/ca-cert.pem";
+        static const char* caKeyFile  = "certs/ca-key.der";
+        static const char* caCertFile = "certs/ca-cert.pem";
     #endif
 #else
-    static const char* clientKey  = "../certs/client-key.der";
-    static const char* clientCert = "../certs/client-cert.der";
+    static const char* clientKey  = "certs/client-key.der";
+    static const char* clientCert = "certs/client-cert.der";
     #ifdef CYASSL_CERT_GEN
-        static const char* caKeyFile  = "../certs/ca-key.der";
-        static const char* caCertFile = "../certs/ca-cert.pem";
+        static const char* caKeyFile  = "certs/ca-key.der";
+        static const char* caCertFile = "certs/ca-cert.pem";
     #endif
 #endif
 
@@ -1111,7 +1118,10 @@ int rsa_test()
     FILE*  file = fopen(clientKey, "rb"), * file2;
 
     if (!file)
+    {
+        perror(clientKey);
         return -40;
+    }
 
     bytes = fread(tmp, 1, sizeof(tmp), file);
   
@@ -1447,9 +1457,9 @@ int rsa_test()
 
 
 #ifndef NO_MAIN_DRIVER
-    static const char* dhKey = "../../certs/dh1024.der";
+    static const char* dhKey = "certs/dh1024.der";
 #else
-    static const char* dhKey = "../certs/dh1024.der";
+    static const char* dhKey = "certs/dh1024.der";
 #endif
 
 #ifndef NO_DH
@@ -1515,9 +1525,9 @@ int dh_test()
 
 
 #ifndef NO_MAIN_DRIVER
-    static const char* dsaKey = "../../certs/dsa512.der";
+    static const char* dsaKey = "certs/dsa512.der";
 #else
-    static const char* dsaKey = "../certs/dsa512.der";
+    static const char* dsaKey = "certs/dsa512.der";
 #endif
 
 #ifndef NO_DSA

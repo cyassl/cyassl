@@ -2,11 +2,13 @@
 # All paths should be given relative to the root
 #
 
+include cyassl/ctaocrypt/include.am
+
 EXTRA_DIST+= \
-	     include/sniffer_error.rc
+	     cyassl/sniffer_error.rc
 
 nobase_include_HEADERS+= \
-                         include/cyassl_error.h \
-                         include/cyassl_int.h \
-                         include/sniffer_error.h \
-                         include/sniffer.h
+                         cyassl/cyassl_error.h \
+                         cyassl/cyassl_int.h \
+                         cyassl/sniffer_error.h \
+                         cyassl/sniffer.h

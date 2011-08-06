@@ -20,23 +20,25 @@
  */
 /* CTaoCrypt benchmark */
 
+#include <config.h>
+
 #include <string.h>
 #include <stdio.h>
 
-#include "ctc_des3.h"
-#include "ctc_arc4.h"
-#include "ctc_hc128.h"
-#include "ctc_rabbit.h"
-#include "ctc_aes.h"
-#include "ctc_md5.h"
-#include "ctc_sha.h"
-#include "ctc_sha256.h"
-#include "ctc_sha512.h"
-#include "ctc_rsa.h"
-#include "ctc_asn.h"
-#include "ctc_ripemd.h"
+#include <cyassl/ctaocrypt/ctc_des3.h>
+#include <cyassl/ctaocrypt/ctc_arc4.h>
+#include <cyassl/ctaocrypt/ctc_hc128.h>
+#include <cyassl/ctaocrypt/ctc_rabbit.h>
+#include <cyassl/ctaocrypt/ctc_aes.h>
+#include <cyassl/ctaocrypt/ctc_md5.h>
+#include <cyassl/ctaocrypt/ctc_sha.h>
+#include <cyassl/ctaocrypt/ctc_sha256.h>
+#include <cyassl/ctaocrypt/ctc_sha512.h>
+#include <cyassl/ctaocrypt/ctc_rsa.h>
+#include <cyassl/ctaocrypt/ctc_asn.h>
+#include <cyassl/ctaocrypt/ctc_ripemd.h>
 
-#include "ctc_dh.h"
+#include <cyassl/ctaocrypt/ctc_dh.h>
 
 
 #ifdef _MSC_VER
@@ -71,7 +73,7 @@ int main(int argc, char** argv)
     bench_aes(1);
 #endif
     bench_arc4();
-#ifndef NO_HC128
+#if HAVE_HC128
     bench_hc128();
 #endif
 #ifndef NO_RABBIT
@@ -200,7 +202,7 @@ void bench_arc4()
 }
 
 
-#ifndef NO_HC128
+#if HAVE_HC128
 void bench_hc128()
 {
     HC128  enc;
@@ -219,7 +221,7 @@ void bench_hc128()
     printf("HC128    %d megs took %5.3f seconds, %6.2f MB/s\n", megs, total,
                                                              persec);
 }
-#endif /* NO_HC128 */
+#endif /* HAVE_HC128 */
 
 
 #ifndef NO_RABBIT

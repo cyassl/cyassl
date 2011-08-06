@@ -20,7 +20,7 @@
  */
 
 
-#ifndef NO_HC128
+#if HAVE_HC128
 
 #ifndef CTAO_CRYPT_HC128_H
 #define CTAO_CRYPT_HC128_H
@@ -54,4 +54,4 @@ CYASSL_API void Hc128_SetKey(HC128*, const byte* key, const byte* iv);
 
 #endif /* CTAO_CRYPT_HC128_H */
 
-#endif /* NO_HC128 */
+#endif /* HAVE_HC128 */

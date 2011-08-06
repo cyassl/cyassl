@@ -1,13 +1,41 @@
-EXTRA_DIST = certs/*.pem certs/*.der certs/*.txt certs/*.raw \
-    lib/dummy *.sln *.vcproj cyassl-iphone.xcodeproj/project.pbxproj \
-    doc/*.txt swig/README swig/*.i swig/cyassl_adds.c swig/*.sh swig/runme.* \
-    swig/python_cyassl.vcproj swig/rsasign.py
+# includes append to these:
+SUFFIXES =
+TESTS =
+CLEANFILES =
+DISTCLEANFILES =
+bin_PROGRAMS =
+noinst_HEADERS =
+lib_LTLIBRARIES =
+man_MANS =
+noinst_LTLIBRARIES =
+noinst_PROGRAMS =
+include_HEADERS =
+nobase_include_HEADERS =
+check_PROGRAMS =
+EXTRA_HEADERS =
+BUILT_SOURCES=
+EXTRA_DIST=
 
-ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS= -I m4
+
+EXTRA_DIST+= lib/dummy
+
+EXTRA_DIST+= cyassl-ntru.vcproj
+EXTRA_DIST+= cyassl.vcproj
+EXTRA_DIST+= cyassl-iphone.xcodeproj/project.pbxproj
+EXTRA_DIST+= cyassl-ntru.sln
+EXTRA_DIST+= cyassl.sln
+
+include cyassl/include.am
+include openssl/include.am
+include certs/include.am
+include doc/include.am
+include swig/include.am
 
 include src/include.am
-include ctaocrypt/test/include.am
 include ctaocrypt/benchmark/include.am
+include ctaocrypt/src/include.am
+include ctaocrypt/test/include.am
 include examples/client/include.am
 include examples/server/include.am
 include examples/echoclient/include.am
@@ -15,44 +43,17 @@ include examples/echoserver/include.am
 include testsuite/include.am
 include sslSniffer/sslSnifferTest/include.am
 
+#TESTS += $(check_PROGRAMS)
+test: check
 
 # !!!! first line of rule has to start with a hard (real) tab, not spaces
-basic:
-	$(MAKE) src/libcyassl.la; \
-	$(MAKE) testsuite/testsuite; \
-    cd testsuite; \
-    ./testsuite; \
-    cd ../;
+basic: src/libcyassl.la testsuite/testsuite $(check_PROGRAMS)
 
-egs:
-	$(MAKE) examples/client/client; \
-	$(MAKE) examples/echoclient/echoclient;\
-	$(MAKE) examples/server/server; \
-	$(MAKE) examples/echoserver/echoserver;
+egs: examples/client/client examples/echoclient/echoclient examples/server/server examples/echoserver/echoserver
 
-ctc:
-	$(MAKE) ctaocrypt/test/test; \
-	$(MAKE) ctaocrypt/benchmark/benchmark; 
+ctc: ctaocrypt/test/test ctaocrypt/benchmark/benchmark
 
 openssl-links:
 	cd lib; ln -s ../src/.libs/libcyassl.a libcrypto.a; \
-    ln -s ../src/.libs/libcyassl.a libssl.a; \
-    ln -s ../src/.libs/libcyassl.a libcyassl.a; cd ../
-
-#  !!! test -e with a .name like .libs then a * like *dylib fails so just
-#      look for the .dylib on OS X, and .so otherwise but copy all parts
-install:
-	$(mkinstalldirs) $(DESTDIR)$(includedir)/openssl $(DESTDIR)$(libdir); \
-    cp -fpR include/openssl/* $(DESTDIR)$(includedir)/openssl; \
-    cp -fpR ctaocrypt/include/*.h $(DESTDIR)$(includedir); \
-    rm $(DESTDIR)$(includedir)/ctc_asn.h; \
-    rm $(DESTDIR)$(includedir)/ctc_coding.h; \
-    rm $(DESTDIR)$(includedir)/ctc_error.h; \
-    rm $(DESTDIR)$(includedir)/ctc_misc.h; \
-    cp -fpR src/libcyassl.la $(DESTDIR)$(libdir); \
-    if test -e src/.libs/libcyassl.a; then \
-    cp -fp src/.libs/libcyassl.a $(DESTDIR)$(libdir); fi; \
-    if test -e src/.libs/libcyassl.so; then \
-    cp -fpR src/.libs/libcyassl.so* $(DESTDIR)$(libdir); fi; \
-    if test -e src/.libs/libcyassl.dylib; then \
-    cp -fpR src/.libs/libcyassl.*dylib $(DESTDIR)$(libdir); fi;
+	  ln -s ../src/.libs/libcyassl.a libssl.a; \
+	  ln -s ../src/.libs/libcyassl.a libcyassl.a; cd ../
