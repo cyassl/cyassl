@@ -1,0 +1,12 @@
+# vim:ft=automake
+# All paths should be given relative to the root
+#
+
+EXTRA_DIST+= \
+	     include/sniffer_error.rc
+
+nobase_include_HEADERS+= \
+                         include/cyassl_error.h \
+                         include/cyassl_int.h \
+                         include/sniffer_error.h \
+                         include/sniffer.h
