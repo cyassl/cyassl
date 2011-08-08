@@ -15,6 +15,19 @@ check_PROGRAMS =
 EXTRA_HEADERS =
 BUILT_SOURCES=
 EXTRA_DIST=
+doc_DATA=
+
+noinst_PROGRAMS+= ${check_PROGRAMS}
+
+exampledir = $(docdir)/@PACKAGE@/example
+example_DATA=
+EXTRA_DIST+= $(example_DATA)
+
+certsdir = $(sysconfdir)/ssl/certs
+certs_DATA=
+EXTRA_DIST+= $(certs_DATA)
+
+EXTRA_DIST+= $(doc_DATA)
 
 ACLOCAL_AMFLAGS= -I m4
 
@@ -43,7 +56,7 @@ include examples/echoserver/include.am
 include testsuite/include.am
 include sslSniffer/sslSnifferTest/include.am
 
-#TESTS += $(check_PROGRAMS)
+TESTS += $(check_PROGRAMS)
 test: check
 
 # !!!! first line of rule has to start with a hard (real) tab, not spaces
@@ -57,3 +70,15 @@ openssl-links:
 	cd lib; ln -s ../src/.libs/libcyassl.a libcrypto.a; \
 	  ln -s ../src/.libs/libcyassl.a libssl.a; \
 	  ln -s ../src/.libs/libcyassl.a libcyassl.a; cd ../
+
+merge-clean:
+	@find ./ | $(GREP) \.gcda | xargs rm -f
+	@find ./ | $(GREP) \.gcno | xargs rm -f
+	@find ./ | $(GREP) \.gz | xargs rm -f
+	@find ./ | $(GREP) \.orig | xargs rm -f
+	@find ./ | $(GREP) \.rej | xargs rm -f
+	@find ./ | $(GREP) \.rpm | xargs rm -f
+	@find ./ | $(GREP) \.THIS | xargs rm -f
+	@find ./ | $(GREP) \.OTHER | xargs rm -f
+	@find ./ | $(GREP) \.BASE | xargs rm -f
+	@find ./ | $(GREP) \~$$ | xargs rm -f

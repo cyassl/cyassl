@@ -3,4 +3,4 @@
 # Create configure and makefile stuff...
 #
 
-autoreconf -ivf
+autoreconf -ivf -Wall

@@ -281,6 +281,11 @@ void ctaocrypt_test(void* args)
         args.argc = argc;
         args.argv = argv;
 
+        if (getenv("srcdir"))
+        {
+          chdir(getenv("srcdir"));
+        }
+
         ctaocrypt_test(&args);
         return args.return_code;
     }

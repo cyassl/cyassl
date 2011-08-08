@@ -25,7 +25,7 @@ AC_CONFIG_AUX_DIR(config)
 
 AC_CANONICAL_TARGET
 
-AM_INIT_AUTOMAKE(-Wall -Werror -Wno-portability foreign tar-ustar color-tests)
+AM_INIT_AUTOMAKE(-Wall -Werror -Wno-portability foreign tar-ustar subdir-objects color-tests silent-rules)
 
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
@@ -81,7 +81,6 @@ AC_FUNC_MALLOC
 AC_FUNC_MKTIME
 AC_FUNC_REALLOC
 
-AC_PREFIX_DEFAULT(/usr/local/cyassl)
 AC_PROG_CC
 AC_PROG_CC_C_O
 AC_PROG_CXX
@@ -511,9 +510,9 @@ then
     fi
 fi
 
-ACX_PTHREAD([
-             AC_DEFINE([HAVE_PTHREAD], [1], [Define if you have POSIX threads libraries and header files.])
-             ],
+AX_PTHREAD([
+            AC_DEFINE([HAVE_PTHREAD], [1], [Define if you have POSIX threads libraries and header files.])
+            ],
             [
              AC_DEFINE([HAVE_PTHREAD], [0], [Define if you have POSIX threads libraries and header files.])
              ])
@@ -557,11 +556,14 @@ fi])
 
 
 PANDORA_VISIBILITY
+CREATE_HEX_VERSION
 AM_CFLAGS="$AM_CFLAGS $CFLAG_VISIBILITY"
 
 # FINAL
-AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([cyassl/version.h])
+AC_CONFIG_FILES([support/libcyassl.pc])
 
 AC_OUTPUT
 

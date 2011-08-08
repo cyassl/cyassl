@@ -46,3 +46,5 @@ cyassl.xcodeproj/
 cyassl*rc*
 autoscan.log
 TAGS
+support/libcyassl.pc
+cyassl/version.h

@@ -3,7 +3,7 @@
 # All paths should be given relative to the root
 
 
-bin_PROGRAMS += testsuite/testsuite
+noinst_PROGRAMS += testsuite/testsuite
 testsuite_testsuite_SOURCES = \
 			      ctaocrypt/test/test.c \
 			      examples/client/client.c \

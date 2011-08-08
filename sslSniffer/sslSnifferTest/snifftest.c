@@ -29,10 +29,11 @@
 
 /* blank build */
 #include <stdio.h>
+#include <stdlib.h>
 int main()
 {
     printf("do ./configure --enable-sniffer to enable build support\n");
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 #else
@@ -229,7 +230,7 @@ int main(int argc, char** argv)
         }
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 #endif /* full build */
