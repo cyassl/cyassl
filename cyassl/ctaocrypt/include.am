@@ -7,7 +7,6 @@ nobase_include_HEADERS+= \
                          cyassl/ctaocrypt/ctc_asn.h \
                          cyassl/ctaocrypt/ctc_asn_public.h \
                          cyassl/ctaocrypt/ctc_coding.h \
-                         cyassl/ctaocrypt/ctc_config.h \
                          cyassl/ctaocrypt/ctc_des3.h \
                          cyassl/ctaocrypt/ctc_dh.h \
                          cyassl/ctaocrypt/ctc_dsa.h \
