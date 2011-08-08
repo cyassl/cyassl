@@ -10,7 +10,7 @@
 config*
 *Debug/
 ctc_config*
-stamp*
+stamp-h
 libtool.m4
 aclocal.m4
 lt*.m4
@@ -48,3 +48,5 @@ autoscan.log
 TAGS
 support/libcyassl.pc
 cyassl/version.h
+cyassl/ctaocrypt/stamp-h1
+stamp-h1
