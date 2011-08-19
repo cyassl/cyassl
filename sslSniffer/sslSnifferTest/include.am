@@ -3,6 +3,7 @@
 # All paths should be given relative to the root
 
 check_PROGRAMS += sslSniffer/sslSnifferTest/snifftest
+noinst_PROGRAMS += sslSniffer/sslSnifferTest/snifftest
 sslSniffer_sslSnifferTest_snifftest_SOURCES = sslSniffer/sslSnifferTest/snifftest.c
 if BUILD_SNIFFER
 sslSniffer_sslSnifferTest_snifftest_LDADD        = src/libcyassl.la -lpcap

@@ -19,13 +19,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
 #
 
-AC_INIT([cyassl],[2.0.0rc2],[http://www.yassl.com])    # !!! also change in ssl.h !!!
+AC_INIT([cyassl],[2.0.0rc2],[http://www.yassl.com])
 
 AC_CONFIG_AUX_DIR(config)
 
 AC_CANONICAL_TARGET
 
-AM_INIT_AUTOMAKE(-Wall -Werror -Wno-portability foreign tar-ustar subdir-objects color-tests silent-rules)
+AM_INIT_AUTOMAKE(-Wall -Werror -Wno-portability foreign tar-ustar subdir-objects)
 
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
@@ -55,6 +55,9 @@ AC_SUBST(CYASSL_LIBRARY_VERSION)
 LT_INIT([win32-dll])
 LT_LANG([C++])
 LT_LANG([C])
+gl_VISIBILITY
+
+m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 AC_CHECK_FUNCS([gethostbyname])
 AC_CHECK_FUNCS([gettimeofday])
@@ -554,8 +557,6 @@ AS_HELP_STRING(--enable-linker-hardening, Enable linker security fixups (default
     LDFLAGS="$LDFLAGS -z relro -z now"
 fi])
 
-
-PANDORA_VISIBILITY
 CREATE_HEX_VERSION
 AM_CFLAGS="$AM_CFLAGS $CFLAG_VISIBILITY"
 

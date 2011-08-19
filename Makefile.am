@@ -17,8 +17,6 @@ BUILT_SOURCES=
 EXTRA_DIST=
 doc_DATA=
 
-noinst_PROGRAMS+= ${check_PROGRAMS}
-
 exampledir = $(docdir)/@PACKAGE@/example
 example_DATA=
 EXTRA_DIST+= $(example_DATA)
@@ -29,7 +27,7 @@ EXTRA_DIST+= $(certs_DATA)
 
 EXTRA_DIST+= $(doc_DATA)
 
-ACLOCAL_AMFLAGS= -I m4
+ACLOCAL_AMFLAGS= -I m4 --install
 
 EXTRA_DIST+= lib/dummy
 

@@ -2,6 +2,7 @@
 # All paths should be given relative to the root
 
 check_PROGRAMS+= ctaocrypt/test/testctaocrypt
+noinst_PROGRAMS+= ctaocrypt/test/testctaocrypt
 ctaocrypt_test_testctaocrypt_SOURCES      = ctaocrypt/test/test.c
 ctaocrypt_test_testctaocrypt_LDADD        = src/libcyassl.la
 ctaocrypt_test_testctaocrypt_DEPENDENCIES = src/libcyassl.la
