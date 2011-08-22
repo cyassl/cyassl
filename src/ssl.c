@@ -28,7 +28,7 @@
 #define TRUE  1
 #define FALSE 0
 
-#include <openssl/ssl.h>
+#include <cyassl/openssl/ssl.h>
 #include <cyassl/cyassl_int.h>
 #include <cyassl/cyassl_error.h>
 #include <cyassl/ctaocrypt/ctc_coding.h>

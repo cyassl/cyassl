@@ -21,8 +21,8 @@
 
 #include <config.h>
 
-#include <openssl/ssl.h>
-#include <openssl/cyassl_test.h>
+#include <cyassl/openssl/ssl.h>
+#include <cyassl/openssl/cyassl_test.h>
 
 /*
 #define TEST_RESUME 

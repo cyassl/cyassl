@@ -21,7 +21,7 @@
 
 #include <config.h>
 
-#include <openssl/ssl.h>
+#include <cyassl/openssl/ssl.h>
 #include <cyassl/cyassl_int.h>
 #include <cyassl/cyassl_error.h>
 #include <cyassl/ctaocrypt/ctc_hmac.h>

@@ -755,9 +755,9 @@ int arc4_test()
 }
 
 
-#if HAVE_HC128
 int hc128_test()
 {
+#if defined(HAVE_HC128) && HAVE_HC128
     byte cipher[16];
     byte plain[16];
 
@@ -826,9 +826,9 @@ int hc128_test()
             return -120 - 5 - i;
     }
 
+#endif /* HAVE_HC128 */
     return 0;
 }
-#endif /* HAVE_HC128 */
 
 
 #ifndef NO_RABBIT

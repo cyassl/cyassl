@@ -38,7 +38,6 @@ EXTRA_DIST+= cyassl-ntru.sln
 EXTRA_DIST+= cyassl.sln
 
 include cyassl/include.am
-include openssl/include.am
 include certs/include.am
 include doc/include.am
 include swig/include.am

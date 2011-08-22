@@ -3,6 +3,7 @@
 #
 
 include cyassl/ctaocrypt/include.am
+include cyassl/openssl/include.am
 
 EXTRA_DIST+= cyassl/sniffer_error.rc
 
