@@ -1150,6 +1150,14 @@ int aes_test()
             return -66;
         if (memcmp(cipher, ctrCipher, 2))
             return -67;
+
+        /* AES_CTR TEST 33byte_encrypt ------------ */
+        AesCtrEncrypt(&enc, cipher, ctrPlain, AES_BLOCK_SIZE*2+1);
+        AesCtrEncrypt(&dec, plain, cipher, AES_BLOCK_SIZE*2+1);
+        if (memcmp(plain, ctrPlain, AES_BLOCK_SIZE*2+1))
+            return -66;
+        //if (memcmp(cipher, ctrCipher, AES_BLOCK_SIZE*2+1))
+        //    return -67;
         /* END ---------------------------------- */
 
     }

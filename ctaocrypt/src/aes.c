@@ -1391,22 +1391,21 @@ static INLINE void IncrementAesCounter(byte* inOutCtr)
 
 void AesCtrEncrypt(Aes* aes, byte* out, const byte* in, word32 sz)
 {
-    word32 blocks;
+    word32 blocks = sz / AES_BLOCK_SIZE;
+    word32 surplus = sz % AES_BLOCK_SIZE;
 
-    if ( sz > AES_BLOCK_SIZE ) {
-        blocks = sz / AES_BLOCK_SIZE;
+    if ( sz >= AES_BLOCK_SIZE ) {
         while (blocks--) {
             AesEncrypt(aes, (byte*)aes->reg, out);
             IncrementAesCounter((byte*)aes->reg);
             xorbuf(out, in, AES_BLOCK_SIZE);
-
             out += AES_BLOCK_SIZE;
             in  += AES_BLOCK_SIZE;
         }
-    } else {
+    } if ( surplus > 0 ) {
         AesEncrypt(aes, (byte*)aes->reg, out);
         IncrementAesCounter((byte*)aes->reg);
-        xorbuf(out, in, sz);
+        xorbuf(out, in, surplus);
     }
 }
 
