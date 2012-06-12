@@ -24,6 +24,7 @@
 #endif
 
 #ifndef NO_AES
+#define CYASSL_AES_COUNTER
 
 #include <cyassl/ctaocrypt/aes.h>
 #include <cyassl/ctaocrypt/error.h>
@@ -1390,15 +1391,22 @@ static INLINE void IncrementAesCounter(byte* inOutCtr)
 
 void AesCtrEncrypt(Aes* aes, byte* out, const byte* in, word32 sz)
 {
-    word32 blocks = sz / AES_BLOCK_SIZE;
+    word32 blocks;
 
-    while (blocks--) {
+    if ( sz > AES_BLOCK_SIZE ) {
+        blocks = sz / AES_BLOCK_SIZE;
+        while (blocks--) {
+            AesEncrypt(aes, (byte*)aes->reg, out);
+            IncrementAesCounter((byte*)aes->reg);
+            xorbuf(out, in, AES_BLOCK_SIZE);
+
+            out += AES_BLOCK_SIZE;
+            in  += AES_BLOCK_SIZE;
+        }
+    } else {
         AesEncrypt(aes, (byte*)aes->reg, out);
         IncrementAesCounter((byte*)aes->reg);
-        xorbuf(out, in, AES_BLOCK_SIZE);
-
-        out += AES_BLOCK_SIZE;
-        in  += AES_BLOCK_SIZE; 
+        xorbuf(out, in, sz);
     }
 }
 
