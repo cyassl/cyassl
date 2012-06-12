@@ -77,6 +77,7 @@
         #undef printf
         #define printf dc_log_printf
 #endif
+#define CYASSL_AES_COUNTER
 
 
 typedef struct testVector {
@@ -1133,14 +1134,24 @@ int aes_test()
         /* Ctr only uses encrypt, even on key setup */
         AesSetKey(&dec, ctrKey, AES_BLOCK_SIZE, ctrIv, AES_ENCRYPTION);
 
+#if 0 
         AesCtrEncrypt(&enc, cipher, ctrPlain, AES_BLOCK_SIZE*4);
         AesCtrEncrypt(&dec, plain, cipher, AES_BLOCK_SIZE*4);
 
         if (memcmp(plain, ctrPlain, AES_BLOCK_SIZE*4))
-            return -66;
-
+          return -66;
         if (memcmp(cipher, ctrCipher, AES_BLOCK_SIZE*4))
+          return -67;
+#endif
+        /* AES_CTR TEST 2byte_encrypt ------------ */
+        AesCtrEncrypt(&enc, cipher, ctrPlain, 2);
+        AesCtrEncrypt(&dec, plain, cipher, 2);
+        if (memcmp(plain, ctrPlain, 2))
+            return -66;
+        if (memcmp(cipher, ctrCipher, 2))
             return -67;
+        /* END ---------------------------------- */
+
     }
 #endif /* CYASSL_AES_COUNTER */
 
