@@ -107,12 +107,13 @@
         AX_APPEND_COMPILE_FLAGS([-Werror],[ax_append_compile_cflags_extra])
         ])
 
-      AX_APPEND_COMPILE_FLAGS([-g])
       AS_IF([test "$ax_enable_debug" = "yes"], [
+        AX_APPEND_COMPILE_FLAGS([-g],,[$ax_append_compile_cflags_extra])
         AX_APPEND_COMPILE_FLAGS([-ggdb],,[$ax_append_compile_cflags_extra])
         AX_APPEND_COMPILE_FLAGS([-O0],,[$ax_append_compile_cflags_extra])
         ],[
-        AX_APPEND_COMPILE_FLAGS([-O2],,[$ax_append_compile_cflags_extra])
+        AX_APPEND_COMPILE_FLAGS([-Os],,[$ax_append_compile_cflags_extra])
+        AX_APPEND_COMPILE_FLAGS([-fomit-frame-pointer],,[$ax_append_compile_cflags_extra])
         ])
 
       AX_APPEND_COMPILE_FLAGS([-fstack-check],,[$ax_append_compile_cflags_extra])
@@ -150,6 +151,7 @@
       AX_APPEND_COMPILE_FLAGS([-Wstrict-prototypes],,[$ax_append_compile_cflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wswitch-enum],,[$ax_append_compile_cflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wundef],,[$ax_append_compile_cflags_extra])
+      AX_APPEND_COMPILE_FLAGS([-Wunused],,[$ax_append_compile_cflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wunused-result],,[$ax_append_compile_cflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wunused-variable],,[$ax_append_compile_cflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wwrite-strings],,[$ax_append_compile_cflags_extra])
@@ -213,6 +215,7 @@
       AX_APPEND_COMPILE_FLAGS([-Wswitch-enum],,[$ax_append_compile_cxxflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wundef],,[$ax_append_compile_cxxflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wc++11-compat],,[$ax_append_compile_cxxflags_extra])
+      AX_APPEND_COMPILE_FLAGS([-Wunused],,[$ax_append_compile_cxxflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wunused-result],,[$ax_append_compile_cxxflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wunused-variable],,[$ax_append_compile_cxxflags_extra])
       AX_APPEND_COMPILE_FLAGS([-Wwrite-strings],,[$ax_append_compile_cxxflags_extra])

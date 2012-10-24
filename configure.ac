@@ -95,10 +95,9 @@ DEBUG_CFLAGS="-g -DDEBUG -DDEBUG_CYASSL"
 
 # DEBUG
 AX_DEBUG
-AS_IF([ test "$ax_enable_debug" = "yes" ],[
-       AM_CFLAGS="$DEBUG_CFLAGS $AM_CFLAGS" ],[
-          AM_CFLAGS="$AM_CFLAGS -DNDEBUG"
-          ])
+AS_IF([test "$ax_enable_debug" = "yes"],
+      [AM_CFLAGS="$DEBUG_CFLAGS $AM_CFLAGS"],
+      [AM_CFLAGS="$AM_CFLAGS -DNDEBUG"])
 
 
 # SMALL BUILD
@@ -685,9 +684,9 @@ fi])
 AX_HARDEN_CC_COMPILER_FLAGS
 
 CREATE_HEX_VERSION
-AC_SUBST(AM_CPPFLAGS)
-AC_SUBST(AM_CFLAGS)
-AC_SUBST(AM_LDFLAGS)
+AC_SUBST([AM_CPPFLAGS])
+AC_SUBST([AM_CFLAGS])
+AC_SUBST([AM_LDFLAGS])
 
 # FINAL
 AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
@@ -710,8 +709,7 @@ echo "   * C++ Compiler:              $CXX_VERSION"
 echo "   * C++ Flags:                 $CXXFLAGS"
 echo "   * CPP Flags:                 $CPPFLAGS"
 echo "   * LIB Flags:                 $LIB"
-echo "   * Assertions enabled:        $ac_cv_assert"
-echo "   * Debug enabled:             $with_debug"
+echo "   * Debug enabled:             $ax_enable_debug"
 echo "   * Warnings as failure:       $ac_cv_warnings_as_errors"
 echo 
 echo "   Features "
