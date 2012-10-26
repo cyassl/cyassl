@@ -17,6 +17,10 @@ BUILT_SOURCES=
 EXTRA_DIST=
 dist_doc_DATA=
 
+#includes additional rules from aminclude.am
+@INC_AMINCLUDE@
+DISTCLEANFILES+= aminclude.am
+
 exampledir = $(docdir)/example
 dist_example_DATA=
 
@@ -55,12 +59,14 @@ test: check
 maintainer-clean-local:
 	-rm Makefile.in
 	-rm aclocal.m4
+	-rm build-aux/compile
 	-rm build-aux/config.guess
 	-rm build-aux/config.sub
 	-rm build-aux/depcomp
 	-rm build-aux/install-sh
 	-rm build-aux/ltmain.sh
 	-rm build-aux/missing
+	-rm cyassl-config
 	-rmdir build-aux
 	-rm configure
 	-rm config.log
@@ -85,6 +91,12 @@ egs:
 ctc:
 	$(MAKE) ctaocrypt/test/testctaocrypt; \
 	$(MAKE) ctaocrypt/benchmark/benchmark; 
+
+install-exec-local:	install-generic-config
+
+install-generic-config:
+	$(mkinstalldirs) $(DESTDIR)$(bindir)
+	$(INSTALL_SCRIPT) @GENERIC_CONFIG@ $(DESTDIR)$(bindir)
 
 merge-clean:
 	@find ./ | $(GREP) \.gcda | xargs rm -f
