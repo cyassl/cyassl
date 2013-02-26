@@ -668,6 +668,18 @@ then
     AC_MSG_ERROR([cannot enable ntru and small, ntru requires TLS which small turns off.]) 
 fi
 
+# SNI
+AC_ARG_ENABLE([sni],
+    [  --enable-sni            Enable SNI (default: disabled)],
+    [ ENABLED_SNI=$enableval ],
+    [ ENABLED_SNI=no ]
+    )
+
+if test "x$ENABLED_SNI" = "xyes"
+then
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_TLS_EXTENSIONS -DHAVE_SNI"
+fi
+
 
 #valgrind
 AC_ARG_ENABLE([valgrind],
@@ -879,6 +891,7 @@ echo "   * OCSP:                      $ENABLED_OCSP"
 echo "   * CRL:                       $ENABLED_CRL"
 echo "   * CRL-MONITOR:               $ENABLED_CRL_MONITOR"
 echo "   * NTRU:                      $ENABLED_NTRU"
+echo "   * SNI:                       $ENABLED_SNI"
 echo "   * valgrind unit tests:       $ENABLED_VALGRIND"
 echo "   * Examples:                  $ENABLED_EXAMPLES"
 echo ""
