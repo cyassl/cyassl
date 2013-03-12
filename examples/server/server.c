@@ -98,7 +98,8 @@ static void Usage(void)
     printf("-d          Disable client cert check\n");
     printf("-b          Bind to any interface instead of localhost only\n");
     printf("-s          Use pre Shared keys\n");
-    printf("-u          Use UDP DTLS\n");
+    printf("-u          Use UDP DTLS,"
+           " add -v 2 for DTLSv1 (default), -v 3 for DTLSv1.2\n");
     printf("-N          Use Non-blocking sockets\n");
 }
 
@@ -133,6 +134,12 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
     ((func_args*)args)->return_code = -1; /* error state */
 
+#ifdef NO_RSA
+    verifyCert = (char*)cliEccCert;
+    ourCert    = (char*)eccCert;
+    ourKey     = (char*)eccKey;
+#endif
+
     while ((ch = mygetopt(argc, argv, "?dbsnNup:v:l:A:c:k:")) != -1) {
         switch (ch) {
             case '?' :
@@ -157,7 +164,6 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
             case 'u' :
                 doDTLS  = 1;
-                version = -1;  /* DTLS flag */
                 break;
 
             case 'p' :
@@ -170,8 +176,6 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
                     Usage();
                     exit(MY_EX_USAGE);
                 }
-                if (doDTLS)
-                    version = -1;  /* stay with DTLS */
                 break;
 
             case 'l' :
@@ -202,6 +206,22 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
     myoptind = 0;      /* reset for test cases */
 
+    /* sort out DTLS versus TLS versions */
+    if (version == CLIENT_INVALID_VERSION) {
+        if (doDTLS)
+            version = CLIENT_DTLS_DEFAULT_VERSION;
+        else
+            version = CLIENT_DEFAULT_VERSION;
+    }
+    else {
+        if (doDTLS) {
+            if (version == 3)
+                version = -2;
+            else
+                version = -1;
+        }
+    }
+
     switch (version) {
 #ifndef NO_OLD_TLS
         case 0:
@@ -225,6 +245,10 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
         case -1:
             method = DTLSv1_server_method();
             break;
+
+        case -2:
+            method = DTLSv1_2_server_method();
+            break;
 #endif
 
         default:
@@ -246,7 +270,11 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     usePsk = 1;
 #endif
 
-#ifndef NO_FILESYSTEM
+#if defined(NO_RSA) && !defined(HAVE_ECC)
+    usePsk = 1;
+#endif
+
+#if !defined(NO_FILESYSTEM) && !defined(NO_CERTS)
     if (!usePsk) {
         if (SSL_CTX_use_certificate_file(ctx, ourCert, SSL_FILETYPE_PEM)
                                          != SSL_SUCCESS)
@@ -264,7 +292,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     }
 #endif
 
-#ifndef NO_FILESYSTEM
+#if !defined(NO_FILESYSTEM) && !defined(NO_CERTS)
     if (!useNtruKey && !usePsk) {
         if (SSL_CTX_use_PrivateKey_file(ctx, ourKey, SSL_FILETYPE_PEM)
                                          != SSL_SUCCESS)
@@ -280,9 +308,9 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
         if (cipherList == NULL) {
             const char *defaultCipherList;
             #ifdef HAVE_NULL_CIPHER
-                defaultCipherList = "PSK-NULL-SHA";
+                defaultCipherList = "PSK-NULL-SHA256";
             #else
-                defaultCipherList = "PSK-AES256-CBC-SHA";
+                defaultCipherList = "PSK-AES128-CBC-SHA256";
             #endif
             if (SSL_CTX_set_cipher_list(ctx, defaultCipherList) != SSL_SUCCESS)
                 err_sys("server can't set cipher list 2");
@@ -290,7 +318,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 #endif
     }
 
-#ifndef NO_FILESYSTEM
+#if !defined(NO_FILESYSTEM) && !defined(NO_CERTS)
     /* if not using PSK, verify peer with certs */
     if (doCliCertCheck && usePsk == 0) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER |
@@ -307,7 +335,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 #if defined(CYASSL_SNIFFER) && !defined(HAVE_NTRU) && !defined(HAVE_ECC)
     /* don't use EDH, can't sniff tmp keys */
     if (cipherList == NULL) {
-        if (SSL_CTX_set_cipher_list(ctx, "AES256-SHA") != SSL_SUCCESS)
+        if (SSL_CTX_set_cipher_list(ctx, "AES256-SHA256") != SSL_SUCCESS)
             err_sys("server can't set cipher list 3");
     }
 #endif

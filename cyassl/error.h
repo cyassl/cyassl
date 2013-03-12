@@ -110,6 +110,7 @@ enum CyaSSL_ErrorCodes {
     SANITY_CIPHER_E        = -275,            /* sanity check on cipher error */
     RECV_OVERFLOW_E        = -276,            /* RXCB returned more than rqed */
     GEN_COOKIE_E           = -277,            /* Generate Cookie Error */
+    NO_PEER_VERIFY         = -278,            /* Need peer cert verify Error */
     /* add strings to SetErrorString !!!!! */
 
     /* begin negotiation parameter errors */
@@ -129,7 +130,7 @@ enum CyaSSL_ErrorCodes {
 
 
 CYASSL_LOCAL
-void SetErrorString(int error, char* buffer);
+void SetErrorString(int err, char* buff);
 
 
 #ifdef __cplusplus

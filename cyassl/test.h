@@ -20,6 +20,8 @@
     #define SOCKET_T unsigned int
 #else
     #include <string.h>
+    #include <sys/types.h>
+#ifndef CYASSL_LEANPSK
     #include <unistd.h>
     #include <netdb.h>
     #include <netinet/in.h>
@@ -27,13 +29,13 @@
     #include <arpa/inet.h>
     #include <sys/ioctl.h>
     #include <sys/time.h>
-    #include <sys/types.h>
     #include <sys/socket.h>
     #include <pthread.h>
     #include <fcntl.h>
     #ifdef TEST_IPV6
         #include <netdb.h>
     #endif
+#endif
     #define SOCKET_T int
     #ifndef SO_NOSIGPIPE
         #include <signal.h>  /* ignore SIGPIPE */
@@ -106,7 +108,11 @@
    
 
 #define SERVER_DEFAULT_VERSION 3
+#define SERVER_DTLS_DEFAULT_VERSION (-2)
+#define SERVER_INVALID_VERSION (-99)
 #define CLIENT_DEFAULT_VERSION 3
+#define CLIENT_DTLS_DEFAULT_VERSION (-2)
+#define CLIENT_INVALID_VERSION (-99)
 
 /* all certs relative to CyaSSL home directory now */
 #define caCert     "./certs/ca-cert.pem"
