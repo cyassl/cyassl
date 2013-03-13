@@ -1758,7 +1758,8 @@ enum AlertDescription {
     illegal_parameter       = 47,
     decrypt_error           = 51,
     protocol_version        = 70,
-    no_renegotiation        = 100
+    no_renegotiation        = 100,
+    unrecognized_name       = 112
 };
 
 
