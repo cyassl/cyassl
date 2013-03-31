@@ -404,6 +404,9 @@ int InitSSL_Ctx(CYASSL_CTX* ctx, CYASSL_METHOD* method)
 #ifdef HAVE_CAVIUM
     ctx->devId = NO_CAVIUM_DEVICE; 
 #endif
+#ifdef HAVE_TLS_EXTENSIONS
+    ctx->extensions = NULL;
+#endif
 
     if (InitMutex(&ctx->countMutex) < 0) {
         CYASSL_MSG("Mutex error on CTX init");
@@ -434,6 +437,9 @@ void SSL_CtxResourceFree(CYASSL_CTX* ctx)
 #endif
 #ifdef HAVE_OCSP
     CyaSSL_OCSP_Cleanup(&ctx->ocsp);
+#endif
+#ifdef HAVE_TLS_EXTENSIONS
+    TLSX_free_all(ctx->extensions);
 #endif
 }
 
@@ -1365,6 +1371,10 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->devId = ctx->devId; 
 #endif
 
+#ifdef HAVE_TLS_EXTENSIONS
+    ssl->extensions = NULL;
+#endif
+
     ssl->rng    = NULL;
     ssl->arrays = NULL;
 
@@ -1583,6 +1593,9 @@ void SSL_ResourceFree(CYASSL* ssl)
             ecc_free(ssl->eccDsaKey);
         XFREE(ssl->eccDsaKey, ssl->heap, DYNAMIC_TYPE_ECC);
     }
+#endif
+#ifdef HAVE_TLS_EXTENSIONS
+    TLSX_free_all(ssl->extensions);
 #endif
 }
 
@@ -6435,9 +6448,13 @@ int SetCipherList(Suites* s, const char* list)
                + ssl->suites->suiteSz + SUITE_LEN
                + COMP_LEN + ENUM_LEN;
 
+#ifdef HAVE_TLS_EXTENSIONS
+        length += TLSX_getSize(ssl);
+#else
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz) {
             length += ssl->suites->hashSigAlgoSz + HELLO_EXT_SZ;
         }
+#endif
         sendSz = length + HANDSHAKE_HEADER_SZ + RECORD_HEADER_SZ;
 
 #ifdef CYASSL_DTLS
@@ -6510,6 +6527,9 @@ int SetCipherList(Suites* s, const char* list)
         else
             output[idx++] = NO_COMPRESSION;
 
+#ifdef HAVE_TLS_EXTENSIONS
+        idx += TLSX_write(ssl, output + idx);
+#else
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
             int i;
@@ -6527,6 +6547,7 @@ int SetCipherList(Suites* s, const char* list)
                 output[idx] = ssl->suites->hashSigAlgo[i];
             }
         }
+#endif
 
         #ifdef CYASSL_DTLS
             if (ssl->options.dtls) {
