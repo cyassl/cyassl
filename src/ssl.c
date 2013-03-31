@@ -459,6 +459,25 @@ int CyaSSL_CTX_UseCavium(CYASSL_CTX* ctx, int devId)
 
 #endif /* HAVE_CAVIUM */
 
+#ifdef HAVE_SNI
+
+int CyaSSL_UseSNI(CYASSL* ssl, unsigned char type, void* data)
+{
+	if (ssl == NULL)
+		return BAD_FUNC_ARG;
+
+    return TLSX_UseSNI(&ssl->extensions, type, data);
+}
+
+int CyaSSL_CTX_UseSNI(CYASSL_CTX* ctx, unsigned char type, void* data)
+{
+    if (ctx == NULL)
+        return BAD_FUNC_ARG;
+
+    return TLSX_UseSNI(&ctx->extensions, type, data);
+}
+
+#endif /* HAVE_SNI */
 
 #ifndef CYASSL_LEANPSK
 int CyaSSL_send(CYASSL* ssl, const void* data, int sz, int flags)
