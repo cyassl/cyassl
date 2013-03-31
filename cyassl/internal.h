@@ -1056,6 +1056,49 @@ typedef struct CYASSL_DTLS_CTX {
     int fd;
 } CYASSL_DTLS_CTX;
 
+/* RFC 6066 TLS Extensions */
+#ifdef HAVE_TLS_EXTENSIONS
+
+typedef enum {
+    SERVER_NAME_INDICATION =  0,
+    // MAX_FRAGMENT_LENGTH    =  1,
+    // CLIENT_CERTIFICATE_URL =  2,
+    // TRUSTED_CA_KEYS        =  3,
+    // TRUNCATED_HMAC         =  4,
+    // STATUS_REQUEST         =  5,
+    // SIGNATURE_ALGORITHMS   = 13,
+} TLSX_Type;
+
+typedef struct TLSX {
+    TLSX_Type type;
+    void *data;
+    struct TLSX *next;
+} TLSX;
+
+void TLSX_free_all(TLSX* list);
+word16 TLSX_getSize(CYASSL* ssl);
+word16 TLSX_write(CYASSL *ssl, byte* output);
+
+/* Server Name Indication */
+#ifdef HAVE_SNI
+
+typedef enum {
+    HOST_NAME = 0
+} SNI_Type;
+
+typedef struct SNI {
+    SNI_Type type;
+    union {
+        char *host_name;
+    } data;
+    struct SNI *next;
+} SNI;
+
+int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data);
+
+#endif /* HAVE_SNI */
+
+#endif /* HAVE_TLS_EXTENSIONS */
 
 /* CyaSSL context type */
 struct CYASSL_CTX {
@@ -1109,6 +1152,9 @@ struct CYASSL_CTX {
 #endif
 #ifdef HAVE_CAVIUM
     int              devId;            /* cavium device id to use */
+#endif
+#ifdef HAVE_TLS_EXTENSIONS
+    TLSX* extensions;                  /* RFC 6066 TLS Extensions data */
 #endif
 };
 
@@ -1638,6 +1684,9 @@ struct CYASSL {
 #endif
 #ifdef HAVE_CAVIUM
     int              devId;            /* cavium device id to use */
+#endif
+#ifdef HAVE_TLS_EXTENSIONS
+    TLSX* extensions;                  /* RFC 6066 TLS Extensions data */
 #endif
     CYASSL_ALERT_HISTORY alert_history;
 };

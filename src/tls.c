@@ -453,6 +453,343 @@ void TLS_hmac(CYASSL* ssl, byte* digest, const byte* in, word32 sz,
     HmacFinal(&hmac, digest);
 }
 
+#ifdef HAVE_TLS_EXTENSIONS
+
+static int TLSX_push_new(TLSX** list, TLSX_Type type)
+{
+    TLSX* extension;
+
+    if (list == NULL) // won't check type since this function is static.
+        return BAD_FUNC_ARG;
+
+    if ((extension = XMALLOC(sizeof(TLSX), 0, DYNAMIC_TYPE_TLSX)) == NULL)
+        return MEMORY_E;
+
+    extension->type = type;
+    extension->data = NULL;
+    extension->next = *list;
+    *list = extension;
+
+    return 0;
+}
+
+/* SNI - Server Name Indication */
+
+#ifdef HAVE_SNI
+
+static void TLSX_SNI_free(SNI* sni)
+{
+    if (sni) {
+        switch (sni->type) {
+            case HOST_NAME:
+                XFREE(sni->data.host_name, 0, DYNAMIC_TYPE_TLSX);
+            break;
+        }
+
+        XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
+    }
+}
+
+static void TLSX_SNI_free_all(SNI* list)
+{
+    SNI* sni;
+
+    while ((sni = list)) {
+        list = sni->next;
+        TLSX_SNI_free(sni);
+    }
+}
+
+static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data)
+{
+    SNI* sni;
+
+    if (list == NULL)
+        return BAD_FUNC_ARG;
+
+    if ((sni = XMALLOC(sizeof(SNI), 0, DYNAMIC_TYPE_TLSX)) == NULL)
+        return MEMORY_E;
+
+    switch (type) {
+        case HOST_NAME: {
+            size_t size = XSTRLEN((char*) data) + 1;
+
+            sni->data.host_name = XMALLOC(size, 0, DYNAMIC_TYPE_TLSX);
+
+            if (sni->data.host_name) {
+                XSTRNCPY(sni->data.host_name, (char*) data, size);
+            } else {
+                XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
+                return MEMORY_E;
+            }
+        }
+        break;
+
+        default: // invalid type
+            XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
+            return BAD_FUNC_ARG;
+        break;
+    }
+
+    sni->type = type;
+    sni->next = *list;
+    *list = sni;
+
+    return 0;
+}
+
+static word16 TLSX_SNI_getSize(SNI* list)
+{
+    SNI* sni;
+    word16 length = 2; // server name list length[2]
+
+    while ((sni = list)) {
+        list = sni->next;
+
+        length += 3; // server name type[1] + server name length[2]
+
+        switch (sni->type) {
+            case HOST_NAME:
+                length += XSTRLEN((char*) sni->data.host_name);
+            break;
+        }
+    }
+
+    return length;
+}
+
+static word16 TLSX_SNI_write(SNI* list, byte* output)
+{
+    SNI* sni;
+    word16 length = 0;
+    word16 offset = 2; // server name list length[2] offset
+
+    while ((sni = list)) {
+        list = sni->next;
+
+        output[offset++] = sni->type; // server name type[1]
+
+        switch (sni->type) {
+            case HOST_NAME:
+                length = XSTRLEN((char*) sni->data.host_name);
+
+                c16toa(length, output + offset); // server name length[2]
+                offset += 2;
+
+                XMEMCPY(output + offset, sni->data.host_name, length);
+
+                offset += length;
+            break;
+        }
+    }
+
+    c16toa(offset - 2, output); // writing server name list length[2]
+
+    return offset;
+}
+
+int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data)
+{
+    TLSX* extension = NULL;
+    SNI*  sni       = NULL;
+    int   ret       = 0;
+
+    if (extensions == NULL)
+        return BAD_FUNC_ARG;
+
+    if ((ret = TLSX_SNI_push_new(&sni, type, data)) != 0)
+        return ret;
+
+    extension = *extensions;
+
+    /* find SNI extension if it already exists. */
+    while (extension && extension->type != SERVER_NAME_INDICATION)
+        extension = extension->next;
+
+    /* push new SNI extension if it doesn't exists. */
+    if (!extension) {
+        if ((ret = TLSX_push_new(extensions, SERVER_NAME_INDICATION)) != 0) {
+            TLSX_SNI_free(sni);
+            return ret;
+        }
+
+        extension = *extensions;
+    }
+
+    /* push new SNI object to extension data. */
+    sni->next = (SNI*) extension->data;
+    extension->data = (void*) sni;
+
+    /* look for another server name of the same type to remove (replacement) */
+    while ((sni = sni->next)) {
+        if (sni->next && sni->next->type == type) {
+            SNI *next = sni->next;
+
+            sni->next = sni->next->next;
+            TLSX_SNI_free(next);
+
+            break;
+        }
+    }
+
+    return 0;
+}
+
+#define SNI_FREE_ALL TLSX_SNI_free_all
+#define SNI_GET_SIZE TLSX_SNI_getSize
+#define SNI_WRITE    TLSX_SNI_write
+
+#else
+
+#define SNI_FREE_ALL(x)
+#define SNI_GET_SIZE(x) 0
+#define SNI_WRITE(x)    0
+
+#endif /* HAVE_SNI */
+
+void TLSX_free_all(TLSX* list)
+{
+    TLSX* extension;
+
+    while ((extension = list)) {
+        list = extension->next;
+
+        switch (extension->type) {
+            case SERVER_NAME_INDICATION:
+                SNI_FREE_ALL((SNI *) extension->data);
+            break;
+        }
+
+        XFREE(extension, 0, DYNAMIC_TYPE_TLSX);
+    }
+}
+
+#define IS_OFF(cemaphor, light) \
+    ((cemaphor)[(light) / 8] ^ (0x01 >> ((light) % 8)))
+
+#define TURN_ON(cemaphor, light) \
+    ((cemaphor)[(light) / 8] |= (0x01 >> ((light) % 8)))
+
+static word16 _TLSX_getSize(TLSX* list, byte* cemaphor)
+{
+    TLSX* extension;
+    word16 length = 0;
+
+    while ((extension = list)) {
+        list = extension->next;
+
+        if (IS_OFF(cemaphor, extension->type)) {
+            length += 4; // extension type[2] + extension length[2]
+
+            switch (extension->type) {
+                case SERVER_NAME_INDICATION:
+                    length += SNI_GET_SIZE((SNI *) extension->data);
+                break;
+            }
+
+            TURN_ON(cemaphor, extension->type);
+        }
+
+    }
+
+    return length;
+}
+
+word16 TLSX_getSize(CYASSL* ssl)
+{
+    word16 length = 0;
+
+    if (ssl && IsTLS(ssl)) {
+        byte cemaphor[16] = {0};
+
+        if (ssl->extensions)
+            length += _TLSX_getSize(ssl->extensions, cemaphor);
+
+        if (ssl->ctx && ssl->ctx->extensions)
+            length += _TLSX_getSize(ssl->ctx->extensions, cemaphor);
+
+        if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
+            length += ssl->suites->hashSigAlgoSz + HELLO_EXT_LEN;
+    }
+
+    if (length)
+        length += 2;
+
+    return length;
+}
+
+static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
+{
+    TLSX* extension;
+    word16 offset = 0;
+
+    while ((extension = list)) {
+        list = extension->next;
+
+        if (IS_OFF(cemaphor, extension->type)) {
+            // extension type[2]
+            c16toa(extension->type, output + offset);
+            offset += 2;
+
+            // extension length[2] and extension data should be written internally
+            switch (extension->type) {
+                case SERVER_NAME_INDICATION:
+                    offset += SNI_WRITE((SNI *) extension->data, output);
+                break;
+            }
+
+            TURN_ON(cemaphor, extension->type);
+        }
+    }
+
+    return offset;
+}
+
+word16 TLSX_write(CYASSL *ssl, byte* output)
+{
+    word16 offset = 0;
+
+    if (ssl && IsTLS(ssl) && output) {
+        byte cemaphor[16] = {0};
+
+        offset += 2; // extensions length[2]
+
+        if (ssl->extensions)
+            offset += _TLSX_write(ssl->extensions, output, cemaphor);
+
+        if (ssl->ctx && ssl->ctx->extensions)
+            offset += _TLSX_write(ssl->ctx->extensions, output, cemaphor);
+
+        if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
+        {
+            int i;
+
+            c16toa(HELLO_EXT_SIG_ALGO, output + offset);
+            offset += 2;
+
+            c16toa(HELLO_EXT_SIGALGO_SZ + ssl->suites->hashSigAlgoSz, output + offset);
+            offset += 2;
+
+            c16toa(ssl->suites->hashSigAlgoSz, output + offset);
+            offset += 2;
+
+            for (i = 0; i < ssl->suites->hashSigAlgoSz; i++, offset++)
+                output[offset] = ssl->suites->hashSigAlgo[i];
+        }
+
+        if (offset > 2)
+            c16toa(offset - 2, output); // extensions length[2]
+    }
+
+    return offset;
+}
+
+// undefining cemaphor macros
+#undef IS_OFF
+#undef TURN_ON
+
+#endif /* HAVE_TLS_EXTENSIONS */
+
 
 #ifndef NO_CYASSL_CLIENT
 
