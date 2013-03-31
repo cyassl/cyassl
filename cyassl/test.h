@@ -131,6 +131,7 @@
 
 typedef struct tcp_ready {
     int ready;              /* predicate */
+    int port;
 #ifdef _POSIX_THREADS
     pthread_mutex_t mutex;
     pthread_cond_t  cond;
@@ -253,11 +254,12 @@ static INLINE int PasswordCallBack(char* passwd, int sz, int rw, void* userdata)
 
 static INLINE void showPeer(CYASSL* ssl)
 {
-#ifdef OPENSSL_EXTRA
 
     CYASSL_CIPHER* cipher;
+#ifdef KEEP_PEER_CERT
     CYASSL_X509*   peer = CyaSSL_get_peer_certificate(ssl);
     if (peer) {
+#ifdef OPENSSL_EXTRA
         char* altName;
         char* issuer  = CyaSSL_X509_NAME_oneline(
                                        CyaSSL_X509_get_issuer_name(peer), 0, 0);
@@ -289,14 +291,17 @@ static INLINE void showPeer(CYASSL* ssl)
 
         XFREE(subject, 0, DYNAMIC_TYPE_OPENSSL);
         XFREE(issuer,  0, DYNAMIC_TYPE_OPENSSL);
+#else
+        printf("peer has a cert!\n");
+#endif
     }
     else
         printf("peer has no cert!\n");
+#endif
     printf("SSL version is %s\n", CyaSSL_get_version(ssl));
 
     cipher = CyaSSL_get_current_cipher(ssl);
     printf("SSL cipher suite is %s\n", CyaSSL_CIPHER_get_name(cipher));
-#endif
 
 #if defined(SESSION_CERTS) && defined(SHOW_CERTS)
     {
@@ -450,14 +455,14 @@ static INLINE int tcp_select(SOCKET_T socketfd, int to_sec)
 }
 
 
-static INLINE void tcp_listen(SOCKET_T* sockfd, int port, int useAnyAddr,
+static INLINE void tcp_listen(SOCKET_T* sockfd, int* port, int useAnyAddr,
                               int udp)
 {
     SOCKADDR_IN_T addr;
 
     /* don't use INADDR_ANY by default, firewall may block, make user switch
        on */
-    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), port);
+    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), *port);
     tcp_socket(sockfd, udp);
 
 #ifndef USE_WINDOWS_API 
@@ -476,6 +481,14 @@ static INLINE void tcp_listen(SOCKET_T* sockfd, int port, int useAnyAddr,
         if (listen(*sockfd, 5) != 0)
             err_sys("tcp listen failed");
     }
+    #if defined(NO_MAIN_DRIVER) && !defined(USE_WINDOWS_API)
+        if (*port == 0)
+        {
+            socklen_t len = sizeof(addr);
+            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0)
+                *port = ntohs(addr.sin_port);
+        }
+    #endif
 }
 
 
@@ -500,12 +513,12 @@ static INLINE int udp_read_connect(SOCKET_T sockfd)
 }
 
 static INLINE void udp_accept(SOCKET_T* sockfd, int* clientfd, int useAnyAddr,
-                              func_args* args)
+                              int port, func_args* args)
 {
     SOCKADDR_IN_T addr;
 
     (void)args;
-    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), yasslPort);
+    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), port);
     tcp_socket(sockfd, 1);
 
 
@@ -522,12 +535,22 @@ static INLINE void udp_accept(SOCKET_T* sockfd, int* clientfd, int useAnyAddr,
     if (bind(*sockfd, (const struct sockaddr*)&addr, sizeof(addr)) != 0)
         err_sys("tcp bind failed");
 
+    #if defined(NO_MAIN_DRIVER) && !defined(USE_WINDOWS_API)
+        if (port == 0)
+        {
+            socklen_t len = sizeof(addr);
+            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0)
+                port = ntohs(addr.sin_port);
+        }
+    #endif
+
 #if defined(_POSIX_THREADS) && defined(NO_MAIN_DRIVER)
     /* signal ready to accept data */
     {
     tcp_ready* ready = args->signal;
     pthread_mutex_lock(&ready->mutex);
     ready->ready = 1;
+    ready->port = port;
     pthread_cond_signal(&ready->cond);
     pthread_mutex_unlock(&ready->mutex);
     }
@@ -543,11 +566,11 @@ static INLINE void tcp_accept(SOCKET_T* sockfd, int* clientfd, func_args* args,
     socklen_t client_len = sizeof(client);
 
     if (udp) {
-        udp_accept(sockfd, clientfd, useAnyAddr, args);
+        udp_accept(sockfd, clientfd, useAnyAddr, port, args);
         return;
     }
 
-    tcp_listen(sockfd, port, useAnyAddr, udp);
+    tcp_listen(sockfd, &port, useAnyAddr, udp);
 
 #if defined(_POSIX_THREADS) && defined(NO_MAIN_DRIVER)
     /* signal ready to tcp_accept */
@@ -555,6 +578,7 @@ static INLINE void tcp_accept(SOCKET_T* sockfd, int* clientfd, func_args* args,
     tcp_ready* ready = args->signal;
     pthread_mutex_lock(&ready->mutex);
     ready->ready = 1;
+    ready->port = port;
     pthread_cond_signal(&ready->cond);
     pthread_mutex_unlock(&ready->mutex);
     }
@@ -936,6 +960,184 @@ static INLINE int CurrentDir(const char* str)
 }
 
 #endif /* USE_WINDOWS_API */
+
+
+#ifdef USE_CYASSL_MEMORY
+
+    typedef struct memoryStats {
+        size_t totalAllocs;     /* number of allocations */
+        size_t totalBytes;      /* total number of bytes allocated */
+        size_t peakBytes;       /* concurrent max bytes */
+        size_t currentBytes;    /* total current bytes in use */
+    } memoryStats;
+
+    typedef struct memHint {
+        size_t thisSize;      /* size of this memory */
+        void*  thisMemory;    /* actual memory for user */
+    } memHint;
+
+    typedef struct memoryTrack {
+        union {
+            memHint hint;
+            byte    alignit[16];   /* make sure we have strong alignment */
+        } u;
+    } memoryTrack;
+
+    #if defined(CYASSL_TRACK_MEMORY)
+        #define DO_MEM_STATS
+        static memoryStats ourMemStats;
+    #endif
+
+    static INLINE void* TrackMalloc(size_t sz)
+    {
+        memoryTrack* mt;
+
+        if (sz == 0)
+            return NULL;
+
+        mt = (memoryTrack*)malloc(sizeof(memoryTrack) + sz);
+        if (mt == NULL)
+            return NULL;
+
+        mt->u.hint.thisSize   = sz;
+        mt->u.hint.thisMemory = (byte*)mt + sizeof(memoryTrack);
+
+#ifdef DO_MEM_STATS
+        ourMemStats.totalAllocs++;
+        ourMemStats.totalBytes   += sz;
+        ourMemStats.currentBytes += sz;
+        if (ourMemStats.currentBytes > ourMemStats.peakBytes)
+            ourMemStats.peakBytes = ourMemStats.currentBytes;
+#endif
+
+        return mt->u.hint.thisMemory;
+    }
+
+
+    static INLINE void TrackFree(void* ptr)
+    {
+        memoryTrack* mt;
+
+        if (ptr == NULL)
+            return;
+
+        mt = (memoryTrack*)((byte*)ptr - sizeof(memoryTrack));
+
+#ifdef DO_MEM_STATS 
+        ourMemStats.currentBytes -= mt->u.hint.thisSize; 
+#endif
+
+        free(mt);
+    }
+
+
+    static INLINE void* TrackRealloc(void* ptr, size_t sz)
+    {
+        void* ret = TrackMalloc(sz);
+
+        if (ptr) {
+            /* if realloc is bigger, don't overread old ptr */
+            memoryTrack* mt = (memoryTrack*)((byte*)ptr - sizeof(memoryTrack));
+
+            if (mt->u.hint.thisSize < sz)
+                sz = mt->u.hint.thisSize;
+        }
+
+        if (ret && ptr)
+            memcpy(ret, ptr, sz);
+
+        if (ret)
+            TrackFree(ptr);
+
+        return ret;
+    }
+
+    static INLINE void InitMemoryTracker(void) 
+    {
+        if (CyaSSL_SetAllocators(TrackMalloc, TrackFree, TrackRealloc) != 0)
+            err_sys("CyaSSL SetAllocators failed for track memory");
+
+    #ifdef DO_MEM_STATS
+        ourMemStats.totalAllocs  = 0;
+        ourMemStats.totalBytes   = 0;
+        ourMemStats.peakBytes    = 0;
+        ourMemStats.currentBytes = 0;
+    #endif
+    }
+
+    static INLINE void ShowMemoryTracker(void) 
+    {
+    #ifdef DO_MEM_STATS 
+        printf("total   Allocs = %9lu\n",
+                                       (unsigned long)ourMemStats.totalAllocs);
+        printf("total   Bytes  = %9lu\n",
+                                       (unsigned long)ourMemStats.totalBytes);
+        printf("peak    Bytes  = %9lu\n",
+                                       (unsigned long)ourMemStats.peakBytes);
+        printf("current Bytes  = %9lu\n",
+                                       (unsigned long)ourMemStats.currentBytes);
+    #endif
+    }
+
+#endif /* USE_CYASSL_MEMORY */
+
+
+#ifdef HAVE_STACK_SIZE
+
+typedef THREAD_RETURN CYASSL_THREAD (*thread_func)(void* args);
+
+
+static INLINE void StackSizeCheck(func_args* args, thread_func tf)
+{
+    int            ret, i, used;
+    unsigned char* myStack;
+    int            stackSize = 1024*128;
+    pthread_attr_t myAttr;
+    pthread_t      threadId;
+
+#ifdef PTHREAD_STACK_MIN
+    if (stackSize < PTHREAD_STACK_MIN)
+        stackSize = PTHREAD_STACK_MIN;
+#endif
+
+    ret = posix_memalign((void**)&myStack, sysconf(_SC_PAGESIZE), stackSize);
+    if (ret != 0) 
+        err_sys("posix_memalign failed\n");        
+
+    memset(myStack, 0xee, stackSize);
+
+    ret = pthread_attr_init(&myAttr);
+    if (ret != 0)
+        err_sys("attr_init failed");
+
+    ret = pthread_attr_setstack(&myAttr, myStack, stackSize);
+    if (ret != 0)
+        err_sys("attr_setstackaddr failed");
+
+    ret = pthread_create(&threadId, &myAttr, tf, args);
+    if (ret != 0) {
+        perror("pthread_create failed");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = pthread_join(threadId, NULL);
+    if (ret != 0)
+        err_sys("pthread_join failed");
+
+    for (i = 0; i < stackSize; i++) {
+        if (myStack[i] != 0xee) {
+            break;
+        }
+    }
+
+    used = stackSize - i;
+    printf("stack used = %d\n", used);
+}
+
+
+#endif /* HAVE_STACK_SIZE */
+
+
 
 #endif /* CyaSSL_TEST_H */
 

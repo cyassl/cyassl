@@ -51,6 +51,12 @@
 #ifdef HAVE_ECC
     #include <cyassl/ctaocrypt/ecc.h>
 #endif    
+#ifdef HAVE_BLAKE2
+    #include <cyassl/ctaocrypt/blake2.h>
+#endif    
+#ifdef HAVE_LIBZ
+    #include <cyassl/ctaocrypt/compress.h>
+#endif
 
 #ifdef _MSC_VER
     /* 4996 warning to use MS extensions e.g., strcpy_s instead of strncpy */
@@ -116,6 +122,7 @@ int  hmac_md5_test(void);
 int  hmac_sha_test(void);
 int  hmac_sha256_test(void);
 int  hmac_sha384_test(void);
+int  hmac_sha512_test(void);
 int  arc4_test(void);
 int  hc128_test(void);
 int  rabbit_test(void);
@@ -137,6 +144,12 @@ int pkcs12_test(void);
 int pbkdf2_test(void);
 #ifdef HAVE_ECC
     int  ecc_test(void);
+#endif
+#ifdef HAVE_BLAKE2
+    int  blake2b_test(void);
+#endif
+#ifdef HAVE_LIBZ
+    int compress_test(void);
 #endif
 
 
@@ -166,7 +179,7 @@ void ctaocrypt_test(void* args)
 
     ((func_args*)args)->return_code = -1; /* error state */
 
-#if !defined(CYASSL_LEANPSK)
+#if !defined(NO_BIG_INT)
     if (CheckCtcSettings() != 1)
         err_sys("Build vs runtime math mismatch\n", -1234);
 
@@ -174,7 +187,7 @@ void ctaocrypt_test(void* args)
     if (CheckFastMathSettings() != 1)
         err_sys("Build vs runtime fastmath FP_MAX_BITS mismatch\n", -1235);
 #endif /* USE_FAST_MATH */
-#endif /* !CYASSL_LEANPSK */
+#endif /* !NO_BIG_INT */
 
 
 #ifndef NO_MD5
@@ -233,6 +246,13 @@ void ctaocrypt_test(void* args)
         printf( "RIPEMD   test passed!\n");
 #endif
 
+#ifdef HAVE_BLAKE2 
+    if ( (ret = blake2b_test()) ) 
+        err_sys("BLAKE2b  test failed!\n", ret);
+    else
+        printf( "BLAKE2b  test passed!\n");
+#endif
+
 #ifndef NO_HMAC
     #ifndef NO_MD5
         if ( (ret = hmac_md5_test()) ) 
@@ -260,6 +280,13 @@ void ctaocrypt_test(void* args)
             err_sys("HMAC-SHA384 test failed!\n", ret);
         else
             printf( "HMAC-SHA384 test passed!\n");
+    #endif
+
+    #ifdef CYASSL_SHA512
+        if ( (ret = hmac_sha512_test()) ) 
+            err_sys("HMAC-SHA512 test failed!\n", ret);
+        else
+            printf( "HMAC-SHA512 test passed!\n");
     #endif
 
 #endif
@@ -374,6 +401,12 @@ void ctaocrypt_test(void* args)
         printf( "ECC      test passed!\n");
 #endif
 
+#ifdef HAVE_LIBZ
+    if ( (ret = compress_test()) ) 
+        err_sys("COMPRESS test failed!\n", ret);
+    else
+        printf( "COMPRESS test passed!\n");
+#endif
 
     ((func_args*)args)->return_code = ret;
 }
@@ -759,6 +792,72 @@ int ripemd_test(void)
     return 0;
 }
 #endif /* CYASSL_RIPEMD */
+
+
+#ifdef HAVE_BLAKE2
+
+
+#define BLAKE2_TESTS 3
+
+static const byte blake2b_vec[BLAKE2_TESTS][BLAKE2B_OUTBYTES] =
+{
+  {
+    0x78, 0x6A, 0x02, 0xF7, 0x42, 0x01, 0x59, 0x03,
+    0xC6, 0xC6, 0xFD, 0x85, 0x25, 0x52, 0xD2, 0x72,
+    0x91, 0x2F, 0x47, 0x40, 0xE1, 0x58, 0x47, 0x61,
+    0x8A, 0x86, 0xE2, 0x17, 0xF7, 0x1F, 0x54, 0x19,
+    0xD2, 0x5E, 0x10, 0x31, 0xAF, 0xEE, 0x58, 0x53,
+    0x13, 0x89, 0x64, 0x44, 0x93, 0x4E, 0xB0, 0x4B,
+    0x90, 0x3A, 0x68, 0x5B, 0x14, 0x48, 0xB7, 0x55,
+    0xD5, 0x6F, 0x70, 0x1A, 0xFE, 0x9B, 0xE2, 0xCE
+  },
+  {
+    0x2F, 0xA3, 0xF6, 0x86, 0xDF, 0x87, 0x69, 0x95,
+    0x16, 0x7E, 0x7C, 0x2E, 0x5D, 0x74, 0xC4, 0xC7,
+    0xB6, 0xE4, 0x8F, 0x80, 0x68, 0xFE, 0x0E, 0x44,
+    0x20, 0x83, 0x44, 0xD4, 0x80, 0xF7, 0x90, 0x4C,
+    0x36, 0x96, 0x3E, 0x44, 0x11, 0x5F, 0xE3, 0xEB,
+    0x2A, 0x3A, 0xC8, 0x69, 0x4C, 0x28, 0xBC, 0xB4,
+    0xF5, 0xA0, 0xF3, 0x27, 0x6F, 0x2E, 0x79, 0x48,
+    0x7D, 0x82, 0x19, 0x05, 0x7A, 0x50, 0x6E, 0x4B
+  },
+  {
+    0x1C, 0x08, 0x79, 0x8D, 0xC6, 0x41, 0xAB, 0xA9,
+    0xDE, 0xE4, 0x35, 0xE2, 0x25, 0x19, 0xA4, 0x72,
+    0x9A, 0x09, 0xB2, 0xBF, 0xE0, 0xFF, 0x00, 0xEF,
+    0x2D, 0xCD, 0x8E, 0xD6, 0xF8, 0xA0, 0x7D, 0x15,
+    0xEA, 0xF4, 0xAE, 0xE5, 0x2B, 0xBF, 0x18, 0xAB,
+    0x56, 0x08, 0xA6, 0x19, 0x0F, 0x70, 0xB9, 0x04,
+    0x86, 0xC8, 0xA7, 0xD4, 0x87, 0x37, 0x10, 0xB1,
+    0x11, 0x5D, 0x3D, 0xEB, 0xBB, 0x43, 0x27, 0xB5
+  }
+};
+
+
+
+int blake2b_test(void)
+{
+    Blake2b b2b;
+    byte    digest[64];
+    byte    input[64];
+    int     i;
+
+    for (i = 0; i < (int)sizeof(input); i++)
+        input[i] = (byte)i;
+
+    for (i = 0; i < BLAKE2_TESTS; i++) {
+        InitBlake2b(&b2b, 64);
+        Blake2bUpdate(&b2b, input, i);
+        Blake2bFinal(&b2b, digest, 64);
+
+        if (memcmp(digest, blake2b_vec[i], 64) != 0) {
+            return -300 - i;
+        }
+    }
+
+    return 0;
+}
+#endif /* HAVE_BLAKE2 */
 
 
 #ifndef NO_SHA256
@@ -1160,6 +1259,75 @@ int hmac_sha384_test(void)
         HmacFinal(&hmac, hash);
 
         if (memcmp(hash, test_hmac[i].output, SHA384_DIGEST_SIZE) != 0)
+            return -20 - i;
+    }
+
+    return 0;
+}
+#endif
+
+
+#if !defined(NO_HMAC) && defined(CYASSL_SHA512)
+int hmac_sha512_test(void)
+{
+    Hmac hmac;
+    byte hash[SHA512_DIGEST_SIZE];
+
+    const char* keys[]=
+    {
+        "\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+                                                                "\x0b\x0b\x0b",
+        "Jefe",
+        "\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA"
+                                                                "\xAA\xAA\xAA"
+    };
+
+    testVector a, b, c;
+    testVector test_hmac[3];
+
+    int times = sizeof(test_hmac) / sizeof(testVector), i;
+
+    a.input  = "Hi There";
+    a.output = "\x87\xaa\x7c\xde\xa5\xef\x61\x9d\x4f\xf0\xb4\x24\x1a\x1d\x6c"
+               "\xb0\x23\x79\xf4\xe2\xce\x4e\xc2\x78\x7a\xd0\xb3\x05\x45\xe1"
+               "\x7c\xde\xda\xa8\x33\xb7\xd6\xb8\xa7\x02\x03\x8b\x27\x4e\xae"
+               "\xa3\xf4\xe4\xbe\x9d\x91\x4e\xeb\x61\xf1\x70\x2e\x69\x6c\x20"
+               "\x3a\x12\x68\x54";
+    a.inLen  = strlen(a.input);
+    a.outLen = SHA512_DIGEST_SIZE;
+
+    b.input  = "what do ya want for nothing?";
+    b.output = "\x16\x4b\x7a\x7b\xfc\xf8\x19\xe2\xe3\x95\xfb\xe7\x3b\x56\xe0"
+               "\xa3\x87\xbd\x64\x22\x2e\x83\x1f\xd6\x10\x27\x0c\xd7\xea\x25"
+               "\x05\x54\x97\x58\xbf\x75\xc0\x5a\x99\x4a\x6d\x03\x4f\x65\xf8"
+               "\xf0\xe6\xfd\xca\xea\xb1\xa3\x4d\x4a\x6b\x4b\x63\x6e\x07\x0a"
+               "\x38\xbc\xe7\x37";
+    b.inLen  = strlen(b.input);
+    b.outLen = SHA512_DIGEST_SIZE;
+
+    c.input  = "\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD"
+               "\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD"
+               "\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD\xDD"
+               "\xDD\xDD\xDD\xDD\xDD\xDD";
+    c.output = "\xfa\x73\xb0\x08\x9d\x56\xa2\x84\xef\xb0\xf0\x75\x6c\x89\x0b"
+               "\xe9\xb1\xb5\xdb\xdd\x8e\xe8\x1a\x36\x55\xf8\x3e\x33\xb2\x27"
+               "\x9d\x39\xbf\x3e\x84\x82\x79\xa7\x22\xc8\x06\xb4\x85\xa4\x7e"
+               "\x67\xc8\x07\xb9\x46\xa3\x37\xbe\xe8\x94\x26\x74\x27\x88\x59"
+               "\xe1\x32\x92\xfb";
+    c.inLen  = strlen(c.input);
+    c.outLen = SHA512_DIGEST_SIZE;
+
+    test_hmac[0] = a;
+    test_hmac[1] = b;
+    test_hmac[2] = c;
+
+    for (i = 0; i < times; ++i) {
+        HmacSetKey(&hmac, SHA512, (byte*)keys[i], (word32)strlen(keys[i]));
+        HmacUpdate(&hmac, (byte*)test_hmac[i].input,
+                   (word32)test_hmac[i].inLen);
+        HmacFinal(&hmac, hash);
+
+        if (memcmp(hash, test_hmac[i].output, SHA512_DIGEST_SIZE) != 0)
             return -20 - i;
     }
 
@@ -3063,3 +3231,120 @@ int ecc_test(void)
 }
 
 #endif /* HAVE_ECC */
+
+#ifdef HAVE_LIBZ
+
+const byte sample_text[] =
+    "Biodiesel cupidatat marfa, cliche aute put a bird on it incididunt elit\n"
+    "polaroid. Sunt tattooed bespoke reprehenderit. Sint twee organic id\n"
+    "marfa. Commodo veniam ad esse gastropub. 3 wolf moon sartorial vero,\n"
+    "plaid delectus biodiesel squid +1 vice. Post-ironic keffiyeh leggings\n"
+    "selfies cray fap hoodie, forage anim. Carles cupidatat shoreditch, VHS\n"
+    "small batch meggings kogi dolore food truck bespoke gastropub.\n"
+    "\n"
+    "Terry richardson adipisicing actually typewriter tumblr, twee whatever\n"
+    "four loko you probably haven't heard of them high life. Messenger bag\n"
+    "whatever tattooed deep v mlkshk. Brooklyn pinterest assumenda chillwave\n"
+    "et, banksy ullamco messenger bag umami pariatur direct trade forage.\n"
+    "Typewriter culpa try-hard, pariatur sint brooklyn meggings. Gentrify\n"
+    "food truck next level, tousled irony non semiotics PBR ethical anim cred\n"
+    "readymade. Mumblecore brunch lomo odd future, portland organic terry\n"
+    "richardson elit leggings adipisicing ennui raw denim banjo hella. Godard\n"
+    "mixtape polaroid, pork belly readymade organic cray typewriter helvetica\n"
+    "four loko whatever street art yr farm-to-table.\n"
+    "\n"
+    "Vinyl keytar vice tofu. Locavore you probably haven't heard of them pug\n"
+    "pickled, hella tonx labore truffaut DIY mlkshk elit cosby sweater sint\n"
+    "et mumblecore. Elit swag semiotics, reprehenderit DIY sartorial nisi ugh\n"
+    "nesciunt pug pork belly wayfarers selfies delectus. Ethical hoodie\n"
+    "seitan fingerstache kale chips. Terry richardson artisan williamsburg,\n"
+    "eiusmod fanny pack irony tonx ennui lo-fi incididunt tofu YOLO\n"
+    "readymade. 8-bit sed ethnic beard officia. Pour-over iphone DIY butcher,\n"
+    "ethnic art party qui letterpress nisi proident jean shorts mlkshk\n"
+    "locavore.\n"
+    "\n"
+    "Narwhal flexitarian letterpress, do gluten-free voluptate next level\n"
+    "banh mi tonx incididunt carles DIY. Odd future nulla 8-bit beard ut\n"
+    "cillum pickled velit, YOLO officia you probably haven't heard of them\n"
+    "trust fund gastropub. Nisi adipisicing tattooed, Austin mlkshk 90's\n"
+    "small batch american apparel. Put a bird on it cosby sweater before they\n"
+    "sold out pork belly kogi hella. Street art mollit sustainable polaroid,\n"
+    "DIY ethnic ea pug beard dreamcatcher cosby sweater magna scenester nisi.\n"
+    "Sed pork belly skateboard mollit, labore proident eiusmod. Sriracha\n"
+    "excepteur cosby sweater, anim deserunt laborum eu aliquip ethical et\n"
+    "neutra PBR selvage.\n"
+    "\n"
+    "Raw denim pork belly truffaut, irony plaid sustainable put a bird on it\n"
+    "next level jean shorts exercitation. Hashtag keytar whatever, nihil\n"
+    "authentic aliquip disrupt laborum. Tattooed selfies deserunt trust fund\n"
+    "wayfarers. 3 wolf moon synth church-key sartorial, gastropub leggings\n"
+    "tattooed. Labore high life commodo, meggings raw denim fingerstache pug\n"
+    "trust fund leggings seitan forage. Nostrud ullamco duis, reprehenderit\n"
+    "incididunt flannel sustainable helvetica pork belly pug banksy you\n"
+    "probably haven't heard of them nesciunt farm-to-table. Disrupt nostrud\n"
+    "mollit magna, sriracha sartorial helvetica.\n"
+    "\n"
+    "Nulla kogi reprehenderit, skateboard sustainable duis adipisicing viral\n"
+    "ad fanny pack salvia. Fanny pack trust fund you probably haven't heard\n"
+    "of them YOLO vice nihil. Keffiyeh cray lo-fi pinterest cardigan aliqua,\n"
+    "reprehenderit aute. Culpa tousled williamsburg, marfa lomo actually anim\n"
+    "skateboard. Iphone aliqua ugh, semiotics pariatur vero readymade\n"
+    "organic. Marfa squid nulla, in laborum disrupt laboris irure gastropub.\n"
+    "Veniam sunt food truck leggings, sint vinyl fap.\n"
+    "\n"
+    "Hella dolore pork belly, truffaut carles you probably haven't heard of\n"
+    "them PBR helvetica in sapiente. Fashion axe ugh bushwick american\n"
+    "apparel. Fingerstache sed iphone, jean shorts blue bottle nisi bushwick\n"
+    "flexitarian officia veniam plaid bespoke fap YOLO lo-fi. Blog\n"
+    "letterpress mumblecore, food truck id cray brooklyn cillum ad sed.\n"
+    "Assumenda chambray wayfarers vinyl mixtape sustainable. VHS vinyl\n"
+    "delectus, culpa williamsburg polaroid cliche swag church-key synth kogi\n"
+    "magna pop-up literally. Swag thundercats ennui shoreditch vegan\n"
+    "pitchfork neutra truffaut etsy, sed single-origin coffee craft beer.\n"
+    "\n"
+    "Odio letterpress brooklyn elit. Nulla single-origin coffee in occaecat\n"
+    "meggings. Irony meggings 8-bit, chillwave lo-fi adipisicing cred\n"
+    "dreamcatcher veniam. Put a bird on it irony umami, trust fund bushwick\n"
+    "locavore kale chips. Sriracha swag thundercats, chillwave disrupt\n"
+    "tousled beard mollit mustache leggings portland next level. Nihil esse\n"
+    "est, skateboard art party etsy thundercats sed dreamcatcher ut iphone\n"
+    "swag consectetur et. Irure skateboard banjo, nulla deserunt messenger\n"
+    "bag dolor terry richardson sapiente.\n";
+
+
+int compress_test(void)
+{
+    int ret = 0;
+    word32 dSz = sizeof(sample_text);
+    word32 cSz = (dSz + (word32)(dSz * 0.001) + 12);
+    byte *c = NULL;
+    byte *d = NULL;
+
+    c = calloc(cSz, sizeof(byte));
+    d = calloc(dSz, sizeof(byte));
+
+    if (c == NULL || d == NULL)
+        ret = -300;
+
+    if (ret == 0 && (ret = Compress(c, cSz, sample_text, dSz, 0)) < 0)
+        ret = -301;
+
+    if (ret > 0) {
+        cSz = (word32)ret;
+        ret = 0;
+    }
+
+    if (ret == 0 && DeCompress(d, dSz, c, cSz) != (int)dSz)
+        ret = -302;
+
+    if (ret == 0 && memcmp(d, sample_text, dSz))
+        ret = -303;
+    
+    if (c) free(c);
+    if (d) free(d);
+
+    return ret;
+}
+
+#endif /* HAVE_LIBZ */
+

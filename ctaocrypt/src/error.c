@@ -281,6 +281,26 @@ void CTaoCryptErrorString(int error, char* buffer)
         XSTRNCPY(buffer, "Cavium Init type error", max);
         break;
 
+    case COMPRESS_INIT_E:
+        XSTRNCPY(buffer, "Compress Init error", max);
+        break;
+
+    case COMPRESS_E:
+        XSTRNCPY(buffer, "Compress error", max);
+        break;
+
+    case DECOMPRESS_INIT_E:
+        XSTRNCPY(buffer, "DeCompress Init error", max);
+        break;
+
+    case DECOMPRESS_E:
+        XSTRNCPY(buffer, "DeCompress error", max);
+        break;
+
+    case BAD_ALIGN_E:
+        XSTRNCPY(buffer, "Bad alignment error, no alloc help", max);
+        break;
+
     default:
         XSTRNCPY(buffer, "unknown error number", max);
 

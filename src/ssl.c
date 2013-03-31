@@ -27,8 +27,6 @@
     #include <errno.h>
 #endif
 
-#define TRUE  1
-#define FALSE 0
 
 #include <cyassl/ssl.h>
 #include <cyassl/internal.h>
@@ -64,6 +62,7 @@
     #if !defined(USE_WINDOWS_API) && !defined(NO_CYASSL_DIR) \
             && !defined(EBSNET)
         #include <dirent.h>
+        #include <sys/stat.h>
     #endif
     #ifdef EBSNET
         #include "vfapi.h"
@@ -71,6 +70,12 @@
     #endif
 #endif /* NO_FILESYSTEM */
 
+#ifndef TRUE
+    #define TRUE  1
+#endif
+#ifndef FALSE
+    #define FALSE 0
+#endif
 
 #ifndef min
 
@@ -1192,6 +1197,7 @@ int CyaSSL_Init(void)
         int           ret;
         int           dynamicType = 0;
         int           eccKey = 0;
+        int           rsaKey = 0;
         void*         heap = ctx ? ctx->heap : NULL;
 
         info.set      = 0;
@@ -1430,12 +1436,15 @@ int CyaSSL_Init(void)
                         FreeRsaKey(&key);
                         return SSL_BAD_FILE;
                     }
+                } else {
+                    rsaKey = 1;
+                    (void)rsaKey;  /* for no ecc builds */
                 }
                 FreeRsaKey(&key);
             }
 #endif
 #ifdef HAVE_ECC  
-            if (eccKey ) {
+            if (!rsaKey) {
                 /* make sure ECC key can be used */
                 word32  idx = 0;
                 ecc_key key;
@@ -1446,6 +1455,7 @@ int CyaSSL_Init(void)
                     return SSL_BAD_FILE;
                 }
                 ecc_free(&key);
+                eccKey = 1;
                 ctx->haveStaticECC = 1;
                 if (ssl)
                     ssl->options.haveStaticECC = 1;
@@ -1690,14 +1700,20 @@ int CyaSSL_CTX_load_verify_locations(CYASSL_CTX* ctx, const char* file,
             return BAD_PATH_ERROR;
         }
         while ( ret == SSL_SUCCESS && (entry = readdir(dir)) != NULL) {
-            if (entry->d_type & DT_REG) {
-                char name[MAX_FILENAME_SZ];
+            char name[MAX_FILENAME_SZ];
+            struct stat s;
 
-                XMEMSET(name, 0, sizeof(name));
-                XSTRNCPY(name, path, MAX_FILENAME_SZ/2 - 2);
-                XSTRNCAT(name, "/", 1);
-                XSTRNCAT(name, entry->d_name, MAX_FILENAME_SZ/2);
-                
+            XMEMSET(name, 0, sizeof(name));
+            XSTRNCPY(name, path, MAX_FILENAME_SZ/2 - 2);
+            XSTRNCAT(name, "/", 1);
+            XSTRNCAT(name, entry->d_name, MAX_FILENAME_SZ/2);
+
+            if (stat(name, &s) != 0) {
+                CYASSL_MSG("stat on name failed");
+                closedir(dir);
+                return BAD_PATH_ERROR;
+            }
+            if (s.st_mode & S_IFREG) {
                 ret = ProcessFile(ctx, name, SSL_FILETYPE_PEM, CA_TYPE, NULL,0,
                                   NULL);
             }
@@ -2625,8 +2641,7 @@ int CyaSSL_dtls_got_timeout(CYASSL* ssl)
         }
 
         #ifdef CYASSL_DTLS
-            if (ssl->version.major == DTLS_MAJOR && 
-                                      ssl->version.minor >= DTLSv1_2_MINOR) {
+            if (ssl->version.major == DTLS_MAJOR) {
                 ssl->options.dtls   = 1;
                 ssl->options.tls    = 1;
                 ssl->options.tls1_1 = 1;
@@ -2884,6 +2899,7 @@ int CyaSSL_dtls_got_timeout(CYASSL* ssl)
         #ifndef NO_PSK
             havePSK = ssl->options.havePSK;
         #endif
+        (void)havePSK;
 
         if (ssl->options.side != SERVER_END) {
             CYASSL_ERROR(ssl->error = SIDE_ERROR);
@@ -2915,8 +2931,7 @@ int CyaSSL_dtls_got_timeout(CYASSL* ssl)
         #endif
 
         #ifdef CYASSL_DTLS
-            if (ssl->version.major == DTLS_MAJOR &&
-                                      ssl->version.minor >= DTLSv1_2_MINOR) {
+            if (ssl->version.major == DTLS_MAJOR) {
                 ssl->options.dtls   = 1;
                 ssl->options.tls    = 1;
                 ssl->options.tls1_1 = 1;
@@ -3128,12 +3143,63 @@ int CyaSSL_Cleanup(void)
 #ifndef NO_SESSION_CACHE
 
 
+/* Make a work from the front of random hash */
+static INLINE word32 MakeWordFromHash(const byte* hashID)
+{
+    return (hashID[0] << 24) | (hashID[1] << 16) | (hashID[2] <<  8) |
+            hashID[3];
+}
+
+
+#ifndef NO_MD5
+
+/* some session IDs aren't random afterall, let's make them random */
+
 static INLINE word32 HashSession(const byte* sessionID)
 {
-    /* id is random, just make 32 bit number from first 4 bytes for now */
-    return (sessionID[0] << 24) | (sessionID[1] << 16) | (sessionID[2] <<  8) |
-            sessionID[3];
+    byte digest[MD5_DIGEST_SIZE];
+    Md5  md5;
+
+    InitMd5(&md5);
+    Md5Update(&md5, sessionID, ID_LEN);
+    Md5Final(&md5, digest);
+
+    return MakeWordFromHash(digest);
 }
+
+#elif !defined(NO_SHA)
+
+static INLINE word32 HashSession(const byte* sessionID)
+{
+    byte digest[SHA_DIGEST_SIZE];
+    Sha  sha;
+
+    InitSha(&sha);
+    ShaUpdate(&sha, sessionID, ID_LEN);
+    ShaFinal(&sha, digest);
+
+    return MakeWordFromHash(digest);
+}
+
+#elif !defined(NO_SHA256)
+
+static INLINE word32 HashSession(const byte* sessionID)
+{
+    byte    digest[SHA256_DIGEST_SIZE];
+    Sha256  sha256;
+
+    InitSha256(&sha256);
+    Sha256Update(&sha256, sessionID, ID_LEN);
+    Sha256Final(&sha256, digest);
+
+    return MakeWordFromHash(digest);
+}
+
+#else
+
+#error "We need a digest to hash the session IDs"
+
+#endif /* NO_MD5 */
 
 
 void CyaSSL_flush_sessions(CYASSL_CTX* ctx, long tm)
@@ -3916,8 +3982,8 @@ int CyaSSL_set_compression(CYASSL* ssl)
                    ssl->options.haveECDSAsig, ssl->options.haveStaticECC,
                    ssl->options.side);
     }
+#endif
 
-   
     /* return true if connection established */
     int CyaSSL_is_init_finished(CYASSL* ssl)
     {
@@ -3930,7 +3996,7 @@ int CyaSSL_set_compression(CYASSL* ssl)
         return 0;
     }
 
-
+#if defined(OPENSSL_EXTRA) || defined(GOAHEAD_WS)
     void CyaSSL_CTX_set_tmp_rsa_callback(CYASSL_CTX* ctx,
                                       CYASSL_RSA*(*f)(CYASSL*, int, int))
     {
@@ -4949,6 +5015,7 @@ int CyaSSL_set_compression(CYASSL* ssl)
     int CyaSSL_EVP_Cipher(CYASSL_EVP_CIPHER_CTX* ctx, byte* dst, byte* src,
                           word32 len)
     {
+        int ret = 0;
         CYASSL_ENTER("CyaSSL_EVP_Cipher");
 
         if (ctx == NULL || dst == NULL || src == NULL) {
@@ -4968,9 +5035,9 @@ int CyaSSL_set_compression(CYASSL* ssl)
             case AES_256_CBC_TYPE :
                 CYASSL_MSG("AES CBC");
                 if (ctx->enc)
-                    AesCbcEncrypt(&ctx->cipher.aes, dst, src, len);
+                    ret = AesCbcEncrypt(&ctx->cipher.aes, dst, src, len);
                 else
-                    AesCbcDecrypt(&ctx->cipher.aes, dst, src, len);
+                    ret = AesCbcDecrypt(&ctx->cipher.aes, dst, src, len);
                 break;
 
 #ifdef CYASSL_AES_COUNTER
@@ -5008,7 +5075,12 @@ int CyaSSL_set_compression(CYASSL* ssl)
                 CYASSL_MSG("bad type");
                 return 0;  /* failure */
             }
-        }    
+        }
+
+        if (ret != 0) {
+            CYASSL_MSG("CyaSSL_EVP_Cipher failure");
+            return 0;  /* failuer */ 
+        }
 
         CYASSL_MSG("CyaSSL_EVP_Cipher success");
         return 1;  /* success */ 
@@ -5408,8 +5480,8 @@ int CyaSSL_set_compression(CYASSL* ssl)
         (void)flags; 
         return 0;
     }
-
-
+#endif
+#ifdef KEEP_PEER_CERT
     CYASSL_X509* CyaSSL_get_peer_certificate(CYASSL* ssl)
     {
         CYASSL_ENTER("SSL_get_peer_certificate");
@@ -5418,9 +5490,9 @@ int CyaSSL_set_compression(CYASSL* ssl)
         else
             return 0;
     }
+#endif
 
-
-
+#ifdef OPENSSL_EXTRA
     int CyaSSL_set_ex_data(CYASSL* ssl, int idx, void* data)
     {
 #ifdef FORTRESS
@@ -5638,15 +5710,15 @@ int CyaSSL_set_compression(CYASSL* ssl)
 
 #ifdef HAVE_AESCCM
     #ifndef NO_RSA
-                case TLS_RSA_WITH_AES_128_CCM_8_SHA256 :
-                    return "TLS_RSA_WITH_AES_128_CCM_8_SHA256";
-                case TLS_RSA_WITH_AES_256_CCM_8_SHA384 :
-                    return "TLS_RSA_WITH_AES_256_CCM_8_SHA384";
+                case TLS_RSA_WITH_AES_128_CCM_8 :
+                    return "TLS_RSA_WITH_AES_128_CCM_8";
+                case TLS_RSA_WITH_AES_256_CCM_8 :
+                    return "TLS_RSA_WITH_AES_256_CCM_8";
     #endif
-                case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256 :
-                    return "TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256";
-                case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384 :
-                    return "TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384";
+                case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:
+                    return "TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8";
+                case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8 :
+                    return "TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8";
 #endif
 
                 default:
@@ -5698,8 +5770,16 @@ int CyaSSL_set_compression(CYASSL* ssl)
                 case TLS_PSK_WITH_AES_256_CBC_SHA :
                     return "TLS_PSK_WITH_AES_256_CBC_SHA";
     #endif
+    #ifndef NO_SHA256
+        #ifdef HAVE_AESCCM
+                case TLS_PSK_WITH_AES_128_CCM_8 :
+                    return "TLS_PSK_WITH_AES_128_CCM_8";
+                case TLS_PSK_WITH_AES_256_CCM_8 :
+                    return "TLS_PSK_WITH_AES_256_CCM_8";
+        #endif
                 case TLS_PSK_WITH_NULL_SHA256 :
                     return "TLS_PSK_WITH_NULL_SHA256";
+    #endif
     #ifndef NO_SHA
                 case TLS_PSK_WITH_NULL_SHA :
                     return "TLS_PSK_WITH_NULL_SHA";

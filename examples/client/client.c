@@ -23,6 +23,11 @@
     #include <config.h>
 #endif
 
+#if !defined(CYASSL_TRACK_MEMORY) && !defined(NO_MAIN_DRIVER)
+    /* in case memory tracker wants stats */
+    #define CYASSL_TRACK_MEMORY
+#endif
+
 #include <cyassl/ssl.h>
 #include <cyassl/test.h>
 
@@ -34,6 +39,7 @@
     int timeoutCB(TimeoutInfo*);
     Timeval timeout;
 #endif
+
 
 static void NonBlockingSSL_Connect(CYASSL* ssl)
 {
@@ -88,7 +94,7 @@ static void Usage(void)
            " NOTE: All files relative to CyaSSL home dir\n");
     printf("-?          Help, print this usage\n");
     printf("-h <host>   Host to connect to, default %s\n", yasslIP);
-    printf("-p <num>    Port to connect on, default %d\n", yasslPort);
+    printf("-p <num>    Port to connect on, not 0, default %d\n", yasslPort);
     printf("-v <num>    SSL version [0-3], SSLv3(0) - TLS1.2(3)), default %d\n",
                                  CLIENT_DEFAULT_VERSION);
     printf("-l <str>    Cipher list\n");
@@ -97,6 +103,7 @@ static void Usage(void)
     printf("-A <file>   Certificate Authority file, default %s\n", caCert);
     printf("-b <num>    Benchmark <num> connections and print stats\n");
     printf("-s          Use pre Shared keys\n");
+    printf("-t          Track CyaSSL memory use\n");
     printf("-d          Disable peer checks\n");
     printf("-g          Send server HTTP GET\n");
     printf("-u          Use UDP DTLS,"
@@ -107,7 +114,7 @@ static void Usage(void)
 }
 
 
-void client_test(void* args)
+THREAD_RETURN CYASSL_THREAD client_test(void* args)
 {
     SOCKET_T sockfd = 0;
 
@@ -120,8 +127,8 @@ void client_test(void* args)
     char         resumeMsg[] = "resuming cyassl!";
     int          resumeSz    = sizeof(resumeMsg);
 
-    char msg[64] = "hello cyassl!";
-    char reply[1024];
+    char msg[32] = "hello cyassl!";   /* GET may make bigger */
+    char reply[80];
     int  input;
     int  msgSz = (int)strlen(msg);
 
@@ -139,6 +146,7 @@ void client_test(void* args)
     int    doPeerCheck = 1;
     int    nonBlocking = 0;
     int    resumeSession = 0;
+    int    trackMemory   = 0;
     char*  cipherList = NULL;
     char*  verifyCert = (char*)caCert;
     char*  ourCert    = (char*)cliCert;
@@ -157,8 +165,9 @@ void client_test(void* args)
     (void)resumeSz;
     (void)session;
     (void)sslResume;
+    (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?gdusmNrh:p:v:l:A:c:k:b:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -180,6 +189,12 @@ void client_test(void* args)
                 usePsk = 1;
                 break;
 
+            case 't' :
+            #ifdef USE_CYASSL_MEMORY
+                trackMemory = 1;
+            #endif
+                break;
+
             case 'm' :
                 matchName = 1;
                 break;
@@ -191,6 +206,10 @@ void client_test(void* args)
 
             case 'p' :
                 port = atoi(myoptarg);
+                #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
+                    if (port == 0)
+                        err_sys("port number cannot be 0");
+                #endif
                 break;
 
             case 'v' :
@@ -256,6 +275,11 @@ void client_test(void* args)
                 version = -1;
         }
     }
+
+#ifdef USE_CYASSL_MEMORY
+    if (trackMemory)
+        InitMemoryTracker(); 
+#endif
 
     switch (version) {
 #ifndef NO_OLD_TLS
@@ -361,8 +385,10 @@ void client_test(void* args)
                 err_sys("can't load ca file, Please run from CyaSSL home dir");
     }
 #endif
+#if !defined(NO_CERTS)
     if (!usePsk && doPeerCheck == 0)
         CyaSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, 0);
+#endif
 
 #ifdef HAVE_CAVIUM
     CyaSSL_CTX_UseCavium(ctx, CAVIUM_DEV_ID);
@@ -561,6 +587,13 @@ void client_test(void* args)
     CyaSSL_CTX_free(ctx);
 
     ((func_args*)args)->return_code = 0;
+
+#ifdef USE_CYASSL_MEMORY
+    if (trackMemory)
+        ShowMemoryTracker();
+#endif /* USE_CYASSL_MEMORY */
+
+    return 0;
 }
 
 
@@ -588,8 +621,12 @@ void client_test(void* args)
 #endif
         if (CurrentDir("client") || CurrentDir("build"))
             ChangeDirBack(2);
-   
+  
+#ifdef HAVE_STACK_SIZE
+        StackSizeCheck(&args, client_test);
+#else 
         client_test(&args);
+#endif
         CyaSSL_Cleanup();
 
 #ifdef HAVE_CAVIUM
@@ -621,5 +658,4 @@ void client_test(void* args)
     }
 
 #endif
-
 

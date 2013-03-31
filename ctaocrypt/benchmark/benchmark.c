@@ -55,6 +55,11 @@
 #endif
 
 
+#ifdef HAVE_BLAKE2
+    #include <cyassl/ctaocrypt/blake2.h>
+    void bench_blake2(void);
+#endif
+
 #ifdef _MSC_VER
     /* 4996 warning to use MS extensions e.g., strcpy_s instead of strncpy */
     #pragma warning(disable: 4996)
@@ -166,6 +171,9 @@ int main(int argc, char** argv)
 #endif
 #ifdef CYASSL_RIPEMD
     bench_ripemd();
+#endif
+#ifdef HAVE_BLAKE2
+    bench_blake2();
 #endif
 
     printf("\n");
@@ -609,6 +617,35 @@ void bench_ripemd(void)
 #endif
 
     printf("RIPEMD   %d %s took %5.3f seconds, %6.2f MB/s\n", numBlocks,
+                                              blockType, total, persec);
+}
+#endif
+
+
+#ifdef HAVE_BLAKE2
+void bench_blake2(void)
+{
+    Blake2b b2b;
+    byte    digest[64];
+    double  start, total, persec;
+    int     i;
+       
+    InitBlake2b(&b2b, 64); 
+    start = current_time(1);
+    
+    for(i = 0; i < numBlocks; i++)
+        Blake2bUpdate(&b2b, plain, sizeof(plain));
+   
+    Blake2bFinal(&b2b, digest, 64);
+
+    total = current_time(0) - start;
+    persec = 1 / total * numBlocks;
+#ifdef BENCH_EMBEDDED
+    /* since using kB, convert to MB/s */
+    persec = persec / 1024;
+#endif
+
+    printf("BLAKE2b  %d %s took %5.3f seconds, %6.2f MB/s\n", numBlocks,
                                               blockType, total, persec);
 }
 #endif

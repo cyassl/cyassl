@@ -123,6 +123,9 @@ static void p_hash(byte* result, word32 resLen, const byte* secret,
             HmacFinal(&hmac, previous);
         }
     }
+    XMEMSET(previous, 0, sizeof previous);
+    XMEMSET(current, 0, sizeof current);
+    XMEMSET(&hmac, 0, sizeof hmac);
 }
 
 
@@ -157,6 +160,9 @@ static void doPRF(byte* digest, word32 digLen, const byte* secret,word32 secLen,
         return;
     if (digLen > MAX_PRF_DIG)
         return;
+
+    XMEMSET(md5_result, 0, digLen);
+    XMEMSET(sha_result, 0, digLen);
     
     XMEMCPY(md5_half, secret, half);
     XMEMCPY(sha_half, secret + half - secLen % 2, half);
@@ -330,10 +336,33 @@ int MakeTlsMasterSecret(CYASSL* ssl)
 }
 
 
+/* Used by EAP-TLS and EAP-TTLS to derive keying material from
+ * the master_secret. */
+int CyaSSL_make_eap_keys(CYASSL* ssl, void* msk, unsigned int len,
+                                                              const char* label)
+{
+    byte seed[SEED_LEN];
+
+    /*
+     * As per RFC-5281, the order of the client and server randoms is reversed
+     * from that used by the TLS protocol to derive keys.
+     */
+    XMEMCPY(seed, ssl->arrays->clientRandom, RAN_LEN);
+    XMEMCPY(&seed[RAN_LEN], ssl->arrays->serverRandom, RAN_LEN);
+
+    PRF((byte*)msk, len,
+        ssl->arrays->masterSecret, SECRET_LEN,
+        (const byte *)label, (word32)strlen(label),
+        seed, SEED_LEN, IsAtLeastTLSv1_2(ssl), ssl->specs.mac_algorithm);
+
+    return 0;
+}
+
+
 /*** next for static INLINE s copied from cyassl_int.c ***/
 
 /* convert 16 bit integer to opaque */
-INLINE static void c16toa(word16 u16, byte* c)
+static INLINE void c16toa(word16 u16, byte* c)
 {
     c[0] = (u16 >> 8) & 0xff;
     c[1] =  u16 & 0xff;
@@ -946,6 +975,14 @@ int MakeTlsMasterSecret(CYASSL* ssl)
 { 
     return NOT_COMPILED_IN;
 }
+
+
+int CyaSSL_make_eap_keys(CYASSL* ssl, void* msk, unsigned int len, 
+                         const char* label)
+{
+    return NOT_COMPILED_IN;
+}
+
 
 #endif /* NO_TLS */
 

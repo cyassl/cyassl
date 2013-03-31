@@ -94,6 +94,9 @@ typedef enum {
 static void Hmac(CYASSL* ssl, byte* digest, const byte* buffer, word32 sz,
                  int content, int verify);
 
+#endif
+
+#ifndef NO_CERTS
 static void BuildCertHashes(CYASSL* ssl, Hashes* hashes);
 #endif
 
@@ -219,11 +222,15 @@ static INLINE void ato16(const byte* c, word16* u16)
 }
 
 
+#ifdef CYASSL_DTLS
+
 /* convert opaque to 32 bit integer */
 static INLINE void ato32(const byte* c, word32* u32)
 {
     *u32 = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3];
 }
+
+#endif /* CYASSL_DTLS */
 
 
 #ifdef HAVE_LIBZ
@@ -275,7 +282,7 @@ static INLINE void ato32(const byte* c, word32* u32)
 
 
     /* compress in to out, return out size or error */
-    static int Compress(CYASSL* ssl, byte* in, int inSz, byte* out, int outSz)
+    static int myCompress(CYASSL* ssl, byte* in, int inSz, byte* out, int outSz)
     {
         int    err;
         int    currTotal = (int)ssl->c_stream.total_out;
@@ -293,7 +300,7 @@ static INLINE void ato32(const byte* c, word32* u32)
         
 
     /* decompress in to out, returnn out size or error */
-    static int DeCompress(CYASSL* ssl, byte* in, int inSz, byte* out, int outSz)
+    static int myDeCompress(CYASSL* ssl, byte* in,int inSz, byte* out,int outSz)
     {
         int    err;
         int    currTotal = (int)ssl->d_stream.total_out;
@@ -358,16 +365,19 @@ int InitSSL_Ctx(CYASSL_CTX* ctx, CYASSL_METHOD* method)
     ctx->CBIORecv = EmbedReceive;
     ctx->CBIOSend = EmbedSend;
     #ifdef CYASSL_DTLS
-        if (method->version.major == DTLS_MAJOR
-                                  && method->version.minor >= DTLSv1_2_MINOR) {
-            ctx->CBIORecv = EmbedReceiveFrom;
-            ctx->CBIOSend = EmbedSendTo;
+        if (method->version.major == DTLS_MAJOR) {
+            ctx->CBIORecv   = EmbedReceiveFrom;
+            ctx->CBIOSend   = EmbedSendTo;
+            ctx->CBIOCookie = EmbedGenerateCookie;
         }
     #endif
 #else
     /* user will set */
-    ctx->CBIORecv = NULL;
-    ctx->CBIOSend = NULL;
+    ctx->CBIORecv   = NULL;
+    ctx->CBIOSend   = NULL;
+    #ifdef CYASSL_DTLS
+        ctx->CBIOCookie = NULL;
+    #endif
 #endif
     ctx->partialWrite   = 0;
     ctx->verifyCallback = 0;
@@ -690,14 +700,14 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-    if (tls1_2 && haveStaticECC) {
+    if (tls1_2 && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE;
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384;
     }
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
-    if (tls && haveStaticECC) {
+    if (tls && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA;
     }
@@ -718,14 +728,14 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-    if (tls1_2 && haveStaticECC) {
+    if (tls1_2 && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE;
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256;
     }
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
-    if (tls && haveStaticECC) {
+    if (tls && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA;
     }
@@ -746,7 +756,7 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
-    if (tls && haveStaticECC) {
+    if (tls && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_RC4_128_SHA;
     }
@@ -760,7 +770,7 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
 #endif
 
 #ifdef BUILD_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA
-    if (tls && haveStaticECC) {
+    if (tls && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
         suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA;
     }
@@ -864,31 +874,31 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
     }
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256
-    if (tls1_2 && haveECDSAsig && haveDH) {
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
+    if (tls1_2 && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
-        suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256;
+        suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8;
     }
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384
-    if (tls1_2 && haveECDSAsig && haveDH) {
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
+    if (tls1_2 && haveECDSAsig) {
         suites->suites[idx++] = ECC_BYTE; 
-        suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384;
+        suites->suites[idx++] = TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8;
     }
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8_SHA256
+#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8
     if (tls1_2 && haveRSA) {
         suites->suites[idx++] = ECC_BYTE; 
-        suites->suites[idx++] = TLS_RSA_WITH_AES_128_CCM_8_SHA256;
+        suites->suites[idx++] = TLS_RSA_WITH_AES_128_CCM_8;
     }
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8_SHA384
+#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8
     if (tls1_2 && haveRSA) {
         suites->suites[idx++] = ECC_BYTE; 
-        suites->suites[idx++] = TLS_RSA_WITH_AES_256_CCM_8_SHA384;
+        suites->suites[idx++] = TLS_RSA_WITH_AES_256_CCM_8;
     }
 #endif
 
@@ -1004,15 +1014,29 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
     }
 #endif
 
+#ifdef BUILD_TLS_PSK_WITH_AES_128_CCM_8
+    if (tls && havePSK) {
+        suites->suites[idx++] = ECC_BYTE; 
+        suites->suites[idx++] = TLS_PSK_WITH_AES_128_CCM_8;
+    }
+#endif
+
+#ifdef BUILD_TLS_PSK_WITH_AES_256_CCM_8
+    if (tls && havePSK) {
+        suites->suites[idx++] = ECC_BYTE; 
+        suites->suites[idx++] = TLS_PSK_WITH_AES_256_CCM_8;
+    }
+#endif
+
 #ifdef BUILD_TLS_PSK_WITH_NULL_SHA256
-    if (tls & havePSK) {
+    if (tls && havePSK) {
         suites->suites[idx++] = 0;
         suites->suites[idx++] = TLS_PSK_WITH_NULL_SHA256;
     }
 #endif
 
 #ifdef BUILD_TLS_PSK_WITH_NULL_SHA
-    if (tls & havePSK) {
+    if (tls && havePSK) {
         suites->suites[idx++] = 0;
         suites->suites[idx++] = TLS_PSK_WITH_NULL_SHA;
     }
@@ -1130,8 +1154,10 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
                 suites->hashSigAlgo[idx++] = sha256_mac;
                 suites->hashSigAlgo[idx++] = ecc_dsa_sa_algo;
             #endif
-            suites->hashSigAlgo[idx++] = sha_mac;
-            suites->hashSigAlgo[idx++] = ecc_dsa_sa_algo;
+            #ifndef NO_SHA
+                suites->hashSigAlgo[idx++] = sha_mac;
+                suites->hashSigAlgo[idx++] = ecc_dsa_sa_algo;
+            #endif
         }
 
         if (haveRSAsig) {
@@ -1143,8 +1169,10 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
                 suites->hashSigAlgo[idx++] = sha256_mac;
                 suites->hashSigAlgo[idx++] = rsa_sa_algo;
             #endif
-            suites->hashSigAlgo[idx++] = sha_mac;
-            suites->hashSigAlgo[idx++] = rsa_sa_algo;
+            #ifndef NO_SHA
+                suites->hashSigAlgo[idx++] = sha_mac;
+                suites->hashSigAlgo[idx++] = rsa_sa_algo;
+            #endif
         }
 
         suites->hashSigAlgoSz = idx;
@@ -1181,11 +1209,13 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->buffers.inputBuffer.buffer = ssl->buffers.inputBuffer.staticBuffer;
     ssl->buffers.inputBuffer.bufferSize  = STATIC_BUFFER_LEN;
     ssl->buffers.inputBuffer.dynamicFlag = 0;
+    ssl->buffers.inputBuffer.offset   = 0;
     ssl->buffers.outputBuffer.length  = 0;
     ssl->buffers.outputBuffer.idx     = 0;
     ssl->buffers.outputBuffer.buffer = ssl->buffers.outputBuffer.staticBuffer;
     ssl->buffers.outputBuffer.bufferSize  = STATIC_BUFFER_LEN;
     ssl->buffers.outputBuffer.dynamicFlag = 0;
+    ssl->buffers.outputBuffer.offset      = 0;
     ssl->buffers.domainName.buffer    = 0;
 #ifndef NO_CERTS
     ssl->buffers.serverDH_P.buffer    = 0;
@@ -1198,7 +1228,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->buffers.prevSent                  = 0;
     ssl->buffers.plainSz                   = 0;
 
-#ifdef OPENSSL_EXTRA
+#ifdef KEEP_PEER_CERT
     ssl->peerCert.derCert.buffer = NULL;
     ssl->peerCert.altNames     = NULL;
     ssl->peerCert.altNamesNext = NULL;
@@ -1226,6 +1256,9 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
 
     ssl->IOCB_ReadCtx  = &ssl->rfd;  /* prevent invalid pointer access if not */
     ssl->IOCB_WriteCtx = &ssl->wfd;  /* correctly set */
+#ifdef CYASSL_DTLS
+    ssl->IOCB_CookieCtx = NULL;      /* we don't use for default cb */
+#endif
 
 #ifndef NO_OLD_TLS
 #ifndef NO_MD5
@@ -1313,11 +1346,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->heap = ctx->heap;    /* defaults to self */
     ssl->options.tls    = 0;
     ssl->options.tls1_1 = 0;
-    if (ssl->version.major == DTLS_MAJOR
-                                        && ssl->version.minor >= DTLSv1_2_MINOR)
-        ssl->options.dtls = 1;
-    else
-        ssl->options.dtls = 0;
+    ssl->options.dtls = ssl->version.major == DTLS_MAJOR;
     ssl->options.partialWrite  = ctx->partialWrite;
     ssl->options.quietShutdown = ctx->quietShutdown;
     ssl->options.certOnly = 0;
@@ -1345,7 +1374,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->buffers.dtlsCtx.peer.sz = 0;
 #endif
 
-#ifdef OPENSSL_EXTRA
+#ifdef KEEP_PEER_CERT
     ssl->peerCert.issuer.sz    = 0;
     ssl->peerCert.subject.sz   = 0;
 #endif
@@ -1561,10 +1590,12 @@ void SSL_ResourceFree(CYASSL* ssl)
     XFREE(ssl->buffers.dtlsCtx.peer.sa, ssl->heap, DYNAMIC_TYPE_SOCKADDR);
     ssl->buffers.dtlsCtx.peer.sa = NULL;
 #endif
-#if defined(OPENSSL_EXTRA) || defined(GOAHEAD_WS)
+#if defined(KEEP_PEER_CERT) || defined(GOAHEAD_WS)
     XFREE(ssl->peerCert.derCert.buffer, ssl->heap, DYNAMIC_TYPE_CERT);
     if (ssl->peerCert.altNames)
         FreeAltNames(ssl->peerCert.altNames, ssl->heap);
+#endif
+#if defined(OPENSSL_EXTRA) || defined(GOAHEAD_WS)
     CyaSSL_BIO_free(ssl->biord);
     if (ssl->biord != ssl->biowr)        /* in case same as write */
         CyaSSL_BIO_free(ssl->biowr);
@@ -2202,6 +2233,11 @@ static int Receive(CYASSL* ssl, byte* buf, word32 sz)
 {
     int recvd;
 
+    if (ssl->ctx->CBIORecv == NULL) {
+        CYASSL_MSG("Your IO Recv callback is null, please set");
+        return -1;
+    }
+
 retry:
     recvd = ssl->ctx->CBIORecv(ssl, (char *)buf, (int)sz, ssl->IOCB_ReadCtx);
     if (recvd < 0)
@@ -2262,10 +2298,12 @@ retry:
 void ShrinkOutputBuffer(CYASSL* ssl)
 {
     CYASSL_MSG("Shrinking output buffer\n");
-    XFREE(ssl->buffers.outputBuffer.buffer, ssl->heap, DYNAMIC_TYPE_OUT_BUFFER);
+    XFREE(ssl->buffers.outputBuffer.buffer - ssl->buffers.outputBuffer.offset,
+          ssl->heap, DYNAMIC_TYPE_OUT_BUFFER);
     ssl->buffers.outputBuffer.buffer = ssl->buffers.outputBuffer.staticBuffer;
     ssl->buffers.outputBuffer.bufferSize  = STATIC_BUFFER_LEN;
     ssl->buffers.outputBuffer.dynamicFlag = 0;
+    ssl->buffers.outputBuffer.offset      = 0;
 }
 
 
@@ -2285,10 +2323,12 @@ void ShrinkInputBuffer(CYASSL* ssl, int forcedFree)
                ssl->buffers.inputBuffer.buffer + ssl->buffers.inputBuffer.idx,
                usedLength);
 
-    XFREE(ssl->buffers.inputBuffer.buffer, ssl->heap, DYNAMIC_TYPE_IN_BUFFER);
+    XFREE(ssl->buffers.inputBuffer.buffer - ssl->buffers.inputBuffer.offset,
+          ssl->heap, DYNAMIC_TYPE_IN_BUFFER);
     ssl->buffers.inputBuffer.buffer = ssl->buffers.inputBuffer.staticBuffer;
     ssl->buffers.inputBuffer.bufferSize  = STATIC_BUFFER_LEN;
     ssl->buffers.inputBuffer.dynamicFlag = 0;
+    ssl->buffers.inputBuffer.offset      = 0;
     ssl->buffers.inputBuffer.idx = 0;
     ssl->buffers.inputBuffer.length = usedLength;
 }
@@ -2296,6 +2336,11 @@ void ShrinkInputBuffer(CYASSL* ssl, int forcedFree)
 
 int SendBuffered(CYASSL* ssl)
 {
+    if (ssl->ctx->CBIOSend == NULL) {
+        CYASSL_MSG("Your IO Send callback is null, please set");
+        return SOCKET_ERROR_E;
+    }
+
     while (ssl->buffers.outputBuffer.length > 0) {
         int sent = ssl->ctx->CBIOSend(ssl,
                                       (char*)ssl->buffers.outputBuffer.buffer +
@@ -2356,20 +2401,40 @@ int SendBuffered(CYASSL* ssl)
 /* Grow the output buffer */
 static INLINE int GrowOutputBuffer(CYASSL* ssl, int size)
 {
-    byte* tmp = (byte*) XMALLOC(size + ssl->buffers.outputBuffer.length,
-                                ssl->heap, DYNAMIC_TYPE_OUT_BUFFER);
+    byte* tmp;
+    byte  hdrSz = ssl->options.dtls ? DTLS_RECORD_HEADER_SZ :
+                                      RECORD_HEADER_SZ; 
+    byte  align = CYASSL_GENERAL_ALIGNMENT;
+    /* the encrypted data will be offset from the front of the buffer by
+       the header, if the user wants encrypted alignment they need
+       to define their alignment requirement */
+
+    if (align) {
+       while (align < hdrSz)
+           align *= 2;
+    }
+
+    tmp = (byte*) XMALLOC(size + ssl->buffers.outputBuffer.length + align,
+                          ssl->heap, DYNAMIC_TYPE_OUT_BUFFER);
     CYASSL_MSG("growing output buffer\n");
    
     if (!tmp) return MEMORY_E;
+    if (align)
+        tmp += align - hdrSz;
 
     if (ssl->buffers.outputBuffer.length)
         XMEMCPY(tmp, ssl->buffers.outputBuffer.buffer,
                ssl->buffers.outputBuffer.length);
 
     if (ssl->buffers.outputBuffer.dynamicFlag)
-        XFREE(ssl->buffers.outputBuffer.buffer, ssl->heap,
+        XFREE(ssl->buffers.outputBuffer.buffer -
+              ssl->buffers.outputBuffer.offset, ssl->heap,
               DYNAMIC_TYPE_OUT_BUFFER);
     ssl->buffers.outputBuffer.dynamicFlag = 1;
+    if (align)
+        ssl->buffers.outputBuffer.offset = align - hdrSz;
+    else
+        ssl->buffers.outputBuffer.offset = 0;
     ssl->buffers.outputBuffer.buffer = tmp;
     ssl->buffers.outputBuffer.bufferSize = size +
                                            ssl->buffers.outputBuffer.length; 
@@ -2380,20 +2445,39 @@ static INLINE int GrowOutputBuffer(CYASSL* ssl, int size)
 /* Grow the input buffer, should only be to read cert or big app data */
 int GrowInputBuffer(CYASSL* ssl, int size, int usedLength)
 {
-    byte* tmp = (byte*) XMALLOC(size + usedLength, ssl->heap,
-                                DYNAMIC_TYPE_IN_BUFFER);
+    byte* tmp;
+    byte  hdrSz = DTLS_RECORD_HEADER_SZ;
+    byte  align = ssl->options.dtls ? CYASSL_GENERAL_ALIGNMENT : 0;
+    /* the encrypted data will be offset from the front of the buffer by
+       the dtls record header, if the user wants encrypted alignment they need
+       to define their alignment requirement. in tls we read record header
+       to get size of record and put actual data back at front, so don't need */
+
+    if (align) {
+       while (align < hdrSz)
+           align *= 2;
+    }
+    tmp = (byte*) XMALLOC(size + usedLength + align, ssl->heap,
+                          DYNAMIC_TYPE_IN_BUFFER);
     CYASSL_MSG("growing input buffer\n");
    
     if (!tmp) return MEMORY_E;
+    if (align)
+        tmp += align - hdrSz;
 
     if (usedLength)
         XMEMCPY(tmp, ssl->buffers.inputBuffer.buffer +
                     ssl->buffers.inputBuffer.idx, usedLength);
 
     if (ssl->buffers.inputBuffer.dynamicFlag)
-        XFREE(ssl->buffers.inputBuffer.buffer,ssl->heap,DYNAMIC_TYPE_IN_BUFFER);
+        XFREE(ssl->buffers.inputBuffer.buffer - ssl->buffers.inputBuffer.offset,
+              ssl->heap,DYNAMIC_TYPE_IN_BUFFER);
 
     ssl->buffers.inputBuffer.dynamicFlag = 1;
+    if (align)
+        ssl->buffers.inputBuffer.offset = align - hdrSz;
+    else
+        ssl->buffers.inputBuffer.offset = 0;
     ssl->buffers.inputBuffer.buffer = tmp;
     ssl->buffers.inputBuffer.bufferSize = size + usedLength;
     ssl->buffers.inputBuffer.idx    = 0;
@@ -2820,7 +2904,7 @@ static int DoCertificate(CYASSL* ssl, byte* input, word32* inOutIdx)
 
 #endif /* HAVE_CRL */
 
-#ifdef OPENSSL_EXTRA
+#ifdef KEEP_PEER_CERT
         /* set X509 format for peer cert even if fatal */
         XSTRNCPY(ssl->peerCert.issuer.name, dCert.issuer, ASN_NAME_MAX);
         ssl->peerCert.issuer.name[ASN_NAME_MAX - 1] = '\0';
@@ -2944,7 +3028,7 @@ static int DoCertificate(CYASSL* ssl, byte* input, word32* inOutIdx)
                 store.error = ret;
                 store.error_depth = totalCerts;
                 store.domain = domain;
-#ifdef OPENSSL_EXTRA
+#ifdef KEEP_PEER_CERT
                 store.current_cert = &ssl->peerCert;
 #else
                 store.current_cert = NULL;
@@ -3081,7 +3165,7 @@ int DoFinished(CYASSL* ssl, const byte* input, word32* inOutIdx, int sniff)
         }
     }
     else {
-        idx += (finishedSz + AEAD_AUTH_TAG_SZ);
+        idx += (finishedSz + ssl->specs.aead_mac_size);
     }
 
     if (ssl->options.side == CLIENT_END) {
@@ -3393,19 +3477,7 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
 
         #ifdef BUILD_AES
             case aes:
-            #ifdef CYASSL_AESNI
-                if ((word)input % 16) {
-                    byte* tmp = (byte*)XMALLOC(sz, ssl->heap,
-                                               DYNAMIC_TYPE_TMP_BUFFER);
-                    if (tmp == NULL) return MEMORY_E;
-                    XMEMCPY(tmp, input, sz);
-                    AesCbcEncrypt(ssl->encrypt.aes, tmp, tmp, sz);
-                    XMEMCPY(out, tmp, sz);
-                    XFREE(tmp, ssl->heap, DYNAMIC_TYPE_TMP_BUFFER);
-                    break;
-                }
-            #endif
-                AesCbcEncrypt(ssl->encrypt.aes, out, input, sz);
+                return AesCbcEncrypt(ssl->encrypt.aes, out, input, sz);
                 break;
         #endif
 
@@ -3432,7 +3504,7 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
 
                     /* Store the length of the plain text minus the explicit
                      * IV length minus the authentication tag size. */
-                    c16toa(sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                    c16toa(sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                                                 additional + AEAD_LEN_OFFSET);
                     XMEMCPY(nonce,
                                  ssl->keys.aead_enc_imp_IV, AEAD_IMP_IV_SZ);
@@ -3440,10 +3512,11 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
                                      ssl->keys.aead_exp_IV, AEAD_EXP_IV_SZ);
                     AesGcmEncrypt(ssl->encrypt.aes,
                         out + AEAD_EXP_IV_SZ, input + AEAD_EXP_IV_SZ,
-                            sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                            sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                         nonce, AEAD_NONCE_SZ,
-                        out + sz - AEAD_AUTH_TAG_SZ, AEAD_AUTH_TAG_SZ,
-                        additional, AEAD_AUTH_DATA_SZ);
+                        out + sz - ssl->specs.aead_mac_size,
+                        ssl->specs.aead_mac_size, additional,
+                        AEAD_AUTH_DATA_SZ);
                     AeadIncrementExpIV(ssl);
                     XMEMSET(nonce, 0, AEAD_NONCE_SZ);
                 }
@@ -3473,7 +3546,7 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
 
                     /* Store the length of the plain text minus the explicit
                      * IV length minus the authentication tag size. */
-                    c16toa(sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                    c16toa(sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                                                 additional + AEAD_LEN_OFFSET);
                     XMEMCPY(nonce,
                                  ssl->keys.aead_enc_imp_IV, AEAD_IMP_IV_SZ);
@@ -3481,9 +3554,10 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
                                      ssl->keys.aead_exp_IV, AEAD_EXP_IV_SZ);
                     AesCcmEncrypt(ssl->encrypt.aes,
                         out + AEAD_EXP_IV_SZ, input + AEAD_EXP_IV_SZ,
-                            sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                            sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                         nonce, AEAD_NONCE_SZ,
-                        out + sz - AEAD_AUTH_TAG_SZ, AEAD_AUTH_TAG_SZ,
+                        out + sz - ssl->specs.aead_mac_size,
+                        ssl->specs.aead_mac_size,
                         additional, AEAD_AUTH_DATA_SZ);
                     AeadIncrementExpIV(ssl);
                     XMEMSET(nonce, 0, AEAD_NONCE_SZ);
@@ -3499,37 +3573,13 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word32 sz)
 
         #ifdef HAVE_HC128
             case hc128:
-                #ifdef XSTREAM_ALIGNMENT
-                if ((word)input % 4) {
-                    byte* tmp = (byte*)XMALLOC(sz, ssl->heap,
-                                               DYNAMIC_TYPE_TMP_BUFFER);
-                    if (tmp == NULL) return MEMORY_E;
-                    XMEMCPY(tmp, input, sz);
-                    Hc128_Process(ssl->encrypt.hc128, tmp, tmp, sz);
-                    XMEMCPY(out, tmp, sz);
-                    XFREE(tmp, ssl->heap, DYNAMIC_TYPE_TMP_BUFFER);
-                    break;
-                }
-                #endif
-                Hc128_Process(ssl->encrypt.hc128, out, input, sz);
+                return Hc128_Process(ssl->encrypt.hc128, out, input, sz);
                 break;
         #endif
 
         #ifdef BUILD_RABBIT
             case rabbit:
-                #ifdef XSTREAM_ALIGNMENT
-                if ((word)input % 4) {
-                    byte* tmp = (byte*)XMALLOC(sz, ssl->heap,
-                                               DYNAMIC_TYPE_TMP_BUFFER);
-                    if (tmp == NULL) return MEMORY_E;
-                    XMEMCPY(tmp, input, sz);
-                    RabbitProcess(ssl->encrypt.rabbit, tmp, tmp, sz);
-                    XMEMCPY(out, tmp, sz);
-                    XFREE(tmp, ssl->heap, DYNAMIC_TYPE_TMP_BUFFER);
-                    break;
-                }
-                #endif
-                RabbitProcess(ssl->encrypt.rabbit, out, input, sz);
+                return RabbitProcess(ssl->encrypt.rabbit, out, input, sz);
                 break;
         #endif
 
@@ -3577,7 +3627,7 @@ static INLINE int Decrypt(CYASSL* ssl, byte* plain, const byte* input,
 
         #ifdef BUILD_AES
             case aes:
-                AesCbcDecrypt(ssl->decrypt.aes, plain, input, sz);
+                return AesCbcDecrypt(ssl->decrypt.aes, plain, input, sz);
                 break;
         #endif
 
@@ -3596,16 +3646,17 @@ static INLINE int Decrypt(CYASSL* ssl, byte* plain, const byte* input,
                 additional[AEAD_VMAJ_OFFSET] = ssl->curRL.pvMajor;
                 additional[AEAD_VMIN_OFFSET] = ssl->curRL.pvMinor;
 
-                c16toa(sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                c16toa(sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                                         additional + AEAD_LEN_OFFSET);
                 XMEMCPY(nonce, ssl->keys.aead_dec_imp_IV, AEAD_IMP_IV_SZ);
                 XMEMCPY(nonce + AEAD_IMP_IV_SZ, input, AEAD_EXP_IV_SZ);
                 if (AesGcmDecrypt(ssl->decrypt.aes,
                             plain + AEAD_EXP_IV_SZ,
                             input + AEAD_EXP_IV_SZ,
-                                sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                                sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                             nonce, AEAD_NONCE_SZ,
-                            input + sz - AEAD_AUTH_TAG_SZ, AEAD_AUTH_TAG_SZ,
+                            input + sz - ssl->specs.aead_mac_size,
+                            ssl->specs.aead_mac_size,
                             additional, AEAD_AUTH_DATA_SZ) < 0) {
                     SendAlert(ssl, alert_fatal, bad_record_mac);
                     XMEMSET(nonce, 0, AEAD_NONCE_SZ);
@@ -3631,16 +3682,17 @@ static INLINE int Decrypt(CYASSL* ssl, byte* plain, const byte* input,
                 additional[AEAD_VMAJ_OFFSET] = ssl->curRL.pvMajor;
                 additional[AEAD_VMIN_OFFSET] = ssl->curRL.pvMinor;
 
-                c16toa(sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                c16toa(sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                                         additional + AEAD_LEN_OFFSET);
                 XMEMCPY(nonce, ssl->keys.aead_dec_imp_IV, AEAD_IMP_IV_SZ);
                 XMEMCPY(nonce + AEAD_IMP_IV_SZ, input, AEAD_EXP_IV_SZ);
                 if (AesCcmDecrypt(ssl->decrypt.aes,
                             plain + AEAD_EXP_IV_SZ,
                             input + AEAD_EXP_IV_SZ,
-                                sz - AEAD_EXP_IV_SZ - AEAD_AUTH_TAG_SZ,
+                                sz - AEAD_EXP_IV_SZ - ssl->specs.aead_mac_size,
                             nonce, AEAD_NONCE_SZ,
-                            input + sz - AEAD_AUTH_TAG_SZ, AEAD_AUTH_TAG_SZ,
+                            input + sz - ssl->specs.aead_mac_size,
+                            ssl->specs.aead_mac_size,
                             additional, AEAD_AUTH_DATA_SZ) < 0) {
                     SendAlert(ssl, alert_fatal, bad_record_mac);
                     XMEMSET(nonce, 0, AEAD_NONCE_SZ);
@@ -3659,13 +3711,13 @@ static INLINE int Decrypt(CYASSL* ssl, byte* plain, const byte* input,
 
         #ifdef HAVE_HC128
             case hc128:
-                Hc128_Process(ssl->decrypt.hc128, plain, input, sz);
+                return Hc128_Process(ssl->decrypt.hc128, plain, input, sz);
                 break;
         #endif
 
         #ifdef BUILD_RABBIT
             case rabbit:
-                RabbitProcess(ssl->decrypt.rabbit, plain, input, sz);
+                return RabbitProcess(ssl->decrypt.rabbit, plain, input, sz);
                 break;
         #endif
 
@@ -3706,7 +3758,7 @@ static int SanityCheckCipherText(CYASSL* ssl, word32 encryptSz)
         minLength = ssl->specs.hash_size;
     }
     else if (ssl->specs.cipher_type == aead) {
-        minLength = ssl->specs.block_size;  /* explicit IV + implicit IV + CTR*/
+        minLength = ssl->specs.block_size; /* explicit IV + implicit IV + CTR */
     }
 
     if (encryptSz < minLength) {
@@ -4055,7 +4107,7 @@ int DoApplicationData(CYASSL* ssl, byte* input, word32* inOutIdx)
     }
     else if (ssl->specs.cipher_type == aead) {
         ivExtra = AEAD_EXP_IV_SZ;
-        digestSz = AEAD_AUTH_TAG_SZ;
+        digestSz = ssl->specs.aead_mac_size;
     }
 
     dataSz = msgSz - ivExtra - digestSz - pad - padByte;
@@ -4070,7 +4122,7 @@ int DoApplicationData(CYASSL* ssl, byte* input, word32* inOutIdx)
 
 #ifdef HAVE_LIBZ
         if (ssl->options.usingCompression) {
-            dataSz = DeCompress(ssl, rawData, dataSz, decomp, sizeof(decomp));
+            dataSz = myDeCompress(ssl, rawData, dataSz, decomp, sizeof(decomp));
             if (dataSz < 0) return dataSz;
         }
 #endif
@@ -4143,7 +4195,7 @@ static int DoAlert(CYASSL* ssl, byte* input, word32* inOutIdx, int* type)
             }
         }
         else {
-            *inOutIdx += AEAD_AUTH_TAG_SZ;
+            *inOutIdx += ssl->specs.aead_mac_size;
         }
     }
 
@@ -4156,6 +4208,7 @@ static int GetInputData(CYASSL *ssl, word32 size)
     int inSz;
     int maxLength;
     int usedLength;
+    int dtlsExtra = 0;
 
     
     /* check max input length */
@@ -4164,12 +4217,15 @@ static int GetInputData(CYASSL *ssl, word32 size)
     inSz       = (int)(size - usedLength);      /* from last partial read */
 
 #ifdef CYASSL_DTLS
-    if (ssl->options.dtls)
+    if (ssl->options.dtls) {
+        if (size < MAX_MTU)
+            dtlsExtra = (int)(MAX_MTU - size);
         inSz = MAX_MTU;       /* read ahead up to MTU */
+    }
 #endif
     
     if (inSz > maxLength) {
-        if (GrowInputBuffer(ssl, size, usedLength) < 0)
+        if (GrowInputBuffer(ssl, size + dtlsExtra, usedLength) < 0)
             return MEMORY_E;
     }
            
@@ -4612,7 +4668,7 @@ static void Hmac(CYASSL* ssl, byte* digest, const byte* in, word32 sz,
     }
 }
 
-
+#ifndef NO_CERTS
 static void BuildMD5_CertVerify(CYASSL* ssl, byte* digest)
 {
     byte md5_result[MD5_DIGEST_SIZE];
@@ -4647,7 +4703,8 @@ static void BuildSHA_CertVerify(CYASSL* ssl, byte* digest)
 
     ShaFinal(&ssl->hashSha, digest);
 }
-#endif
+#endif /* NO_CERTS */
+#endif /* NO_OLD_TLS */
 
 
 #ifndef NO_CERTS
@@ -4740,7 +4797,7 @@ static int BuildMessage(CYASSL* ssl, byte* output, const byte* input, int inSz,
 #ifdef HAVE_AEAD
     if (ssl->specs.cipher_type == aead) {
         ivSz = AEAD_EXP_IV_SZ;
-        sz += (ivSz + 16 - digestSz);
+        sz += (ivSz + ssl->specs.aead_mac_size - digestSz);
         XMEMCPY(iv, ssl->keys.aead_exp_IV, AEAD_EXP_IV_SZ);
     }
 #endif
@@ -5079,7 +5136,7 @@ int SendData(CYASSL* ssl, const void* data, int sz)
 
 #ifdef HAVE_LIBZ
         if (ssl->options.usingCompression) {
-            buffSz = Compress(ssl, sendBuffer, buffSz, comp, sizeof(comp));
+            buffSz = myCompress(ssl, sendBuffer, buffSz, comp, sizeof(comp));
             if (buffSz < 0) {
                 return buffSz;
             }
@@ -5176,6 +5233,7 @@ int SendAlert(CYASSL* ssl, int severity, int type)
     byte *output;
     int  sendSz;
     int  ret;
+    int  dtlsExtra = 0;
 
     /* if sendalert is called again for nonbloking */
     if (ssl->options.sendAlertState != 0) {
@@ -5185,8 +5243,14 @@ int SendAlert(CYASSL* ssl, int severity, int type)
         return ret;
     }
 
+   #ifdef CYASSL_DTLS
+        if (ssl->options.dtls)
+           dtlsExtra = DTLS_RECORD_EXTRA; 
+   #endif
+
     /* check for avalaible size */
-    if ((ret = CheckAvalaibleSize(ssl, ALERT_SIZE + MAX_MSG_EXTRA)) != 0)
+    if ((ret = CheckAvalaibleSize(ssl,
+                                  ALERT_SIZE + MAX_MSG_EXTRA + dtlsExtra)) != 0)
         return ret;
 
     /* get ouput buffer */
@@ -5634,6 +5698,14 @@ const char* const cipher_names[] =
     "PSK-AES256-CBC-SHA",
 #endif
 
+#ifdef BUILD_TLS_PSK_WITH_AES_128_CCM_8
+    "PSK-AES128-CCM-8",
+#endif
+
+#ifdef BUILD_TLS_PSK_WITH_AES_256_CCM_8
+    "PSK-AES256-CCM-8",
+#endif
+
 #ifdef BUILD_TLS_PSK_WITH_NULL_SHA256
     "PSK-NULL-SHA256",
 #endif
@@ -5670,20 +5742,20 @@ const char* const cipher_names[] =
     "NTRU-AES256-SHA",
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8_SHA256
-    "AES128-CCM-8-SHA256",
+#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8
+    "AES128-CCM-8",
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8_SHA384
-    "AES256-CCM-8-SHA384",
+#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8
+    "AES256-CCM-8",
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256
-    "ECDHE-ECDSA-AES128-CCM-8-SHA256",
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
+    "ECDHE-ECDSA-AES128-CCM-8",
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384
-    "ECDHE-ECDSA-AES256-CCM-8-SHA384",
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
+    "ECDHE-ECDSA-AES256-CCM-8",
 #endif
 
 #ifdef BUILD_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
@@ -5934,6 +6006,14 @@ int cipher_name_idx[] =
     TLS_PSK_WITH_AES_256_CBC_SHA,
 #endif
 
+#ifdef BUILD_TLS_PSK_WITH_AES_128_CCM_8
+    TLS_PSK_WITH_AES_128_CCM_8,
+#endif
+
+#ifdef BUILD_TLS_PSK_WITH_AES_256_CCM_8
+    TLS_PSK_WITH_AES_256_CCM_8,
+#endif
+
 #ifdef BUILD_TLS_PSK_WITH_NULL_SHA256
     TLS_PSK_WITH_NULL_SHA256,
 #endif
@@ -5970,20 +6050,20 @@ int cipher_name_idx[] =
     TLS_NTRU_RSA_WITH_AES_256_CBC_SHA,    
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8_SHA256
-    TLS_RSA_WITH_AES_128_CCM_8_SHA256,
+#ifdef BUILD_TLS_RSA_WITH_AES_128_CCM_8
+    TLS_RSA_WITH_AES_128_CCM_8,
 #endif
 
-#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8_SHA384
-    TLS_RSA_WITH_AES_256_CCM_8_SHA384,
+#ifdef BUILD_TLS_RSA_WITH_AES_256_CCM_8
+    TLS_RSA_WITH_AES_256_CCM_8,
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256
-    TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256,
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
+    TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
 #endif
 
-#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384
-    TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384,
+#ifdef BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
+    TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8,
 #endif
 
 #ifdef BUILD_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
@@ -7140,6 +7220,8 @@ int SetCipherList(Suites* s, const char* list)
                     pms += 2;
                     XMEMCPY(pms, ssl->arrays->psk_key, ssl->arrays->psk_keySz);
                     ssl->arrays->preMasterSz = ssl->arrays->psk_keySz * 2 + 4;
+                    XMEMSET(ssl->arrays->psk_key, 0, ssl->arrays->psk_keySz);
+                    ssl->arrays->psk_keySz = 0; /* No further need */
                 }
                 break;
         #endif /* NO_PSK */
@@ -7296,6 +7378,9 @@ int SetCipherList(Suites* s, const char* list)
                 ret = tmpRet;   /* save WANT_WRITE unless more serious */
             ssl->options.clientState = CLIENT_KEYEXCHANGE_COMPLETE;
         }
+        /* No further need for PMS */
+        XMEMSET(ssl->arrays->preMasterSecret, 0, ssl->arrays->preMasterSz);
+        ssl->arrays->preMasterSz = 0;
 
         return ret;
     }
@@ -8387,16 +8472,16 @@ int SetCipherList(Suites* s, const char* list)
                 return 1;
             break;
 
-        case TLS_RSA_WITH_AES_128_CCM_8_SHA256 :
-        case TLS_RSA_WITH_AES_256_CCM_8_SHA384 :
+        case TLS_RSA_WITH_AES_128_CCM_8 :
+        case TLS_RSA_WITH_AES_256_CCM_8 :
             if (requirement == REQUIRES_RSA)
                 return 1;
             if (requirement == REQUIRES_RSA_SIG)
                 return 1;
             break;
 
-        case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256 :
-        case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384 :
+        case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 :
+        case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8 :
             if (requirement == REQUIRES_ECC_DSA)
                 return 1;
             break;
@@ -9029,8 +9114,12 @@ int SetCipherList(Suites* s, const char* list)
                         return BUFFER_ERROR;
                     if (i + b > totalSz)
                         return INCOMPLETE_DATA;
-                    if ((EmbedGenerateCookie(cookie, COOKIE_SZ, ssl)
-                                                                 != COOKIE_SZ)
+                    if (ssl->ctx->CBIORecv == NULL) {
+                        CYASSL_MSG("Your Cookie callback is null, please set");
+                        return COOKIE_ERROR;
+                    }
+                    if ((ssl->ctx->CBIOCookie(ssl, cookie, COOKIE_SZ,
+                                              ssl->IOCB_CookieCtx) != COOKIE_SZ)
                             || (b != COOKIE_SZ)
                             || (XMEMCMP(cookie, input + i, b) != 0)) {
                         return COOKIE_ERROR;
@@ -9340,7 +9429,12 @@ int SetCipherList(Suites* s, const char* list)
         output[idx++] =  ssl->chVersion.minor;
 
         output[idx++] = cookieSz;
-        if ((ret = EmbedGenerateCookie(output + idx, cookieSz, ssl)) < 0)
+        if (ssl->ctx->CBIORecv == NULL) {
+            CYASSL_MSG("Your Cookie callback is null, please set");
+            return COOKIE_ERROR;
+        }
+        if ((ret = ssl->ctx->CBIOCookie(ssl, output + idx, cookieSz,
+                                        ssl->IOCB_CookieCtx)) < 0)
             return ret;
 
         HashOutput(ssl, output, sendSz, 0);
@@ -9487,6 +9581,9 @@ int SetCipherList(Suites* s, const char* list)
                 ssl->arrays->preMasterSz = ssl->arrays->psk_keySz * 2 + 4;
 
                 ret = MakeMasterSecret(ssl);
+                /* No further need for PSK */
+                XMEMSET(ssl->arrays->psk_key, 0, ssl->arrays->psk_keySz);
+                ssl->arrays->psk_keySz = 0;
             }
             break;
         #endif /* NO_PSK */
@@ -9594,6 +9691,9 @@ int SetCipherList(Suites* s, const char* list)
             }
             break;
         }
+        /* No further need for PMS */
+        XMEMSET(ssl->arrays->preMasterSecret, 0, ssl->arrays->preMasterSz);
+        ssl->arrays->preMasterSz = 0;
 
         if (ret == 0) {
             ssl->options.clientState = CLIENT_KEYEXCHANGE_COMPLETE;

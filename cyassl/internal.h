@@ -112,6 +112,7 @@
     #define SHA256_DIGEST_SIZE 32 
 #endif
 
+
 #ifdef __cplusplus
     extern "C" {
 #endif
@@ -173,8 +174,8 @@ void c32to24(word32 in, word24 out);
         #define BUILD_TLS_RSA_WITH_AES_256_GCM_SHA384
     #endif
     #if defined (HAVE_AESCCM)
-        #define BUILD_TLS_RSA_WITH_AES_128_CCM_8_SHA256
-        #define BUILD_TLS_RSA_WITH_AES_256_CCM_8_SHA384
+        #define BUILD_TLS_RSA_WITH_AES_128_CCM_8
+        #define BUILD_TLS_RSA_WITH_AES_256_CCM_8
     #endif
 #endif
 
@@ -208,6 +209,10 @@ void c32to24(word32 in, word24 out);
   #endif
     #ifndef NO_SHA256
         #define BUILD_TLS_PSK_WITH_AES_128_CBC_SHA256
+        #ifdef HAVE_AESCCM
+            #define BUILD_TLS_PSK_WITH_AES_128_CCM_8
+            #define BUILD_TLS_PSK_WITH_AES_256_CCM_8
+        #endif
     #endif
 #endif
 
@@ -308,8 +313,8 @@ void c32to24(word32 in, word24 out);
             #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384
         #endif
         #if defined (HAVE_AESCCM)
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384
+            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
+            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
         #endif
     #endif
     #if !defined(NO_RC4)
@@ -474,10 +479,14 @@ enum {
      * also, in some of the other AES-CCM suites
      * there will be second byte number conflicts
      * with non-ECC AES-GCM */
-    TLS_RSA_WITH_AES_128_CCM_8_SHA256         = 0xa0,
-    TLS_RSA_WITH_AES_256_CCM_8_SHA384         = 0xa1,
-    TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SHA256 = 0xac, /* Still TBD, made up */
-    TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8_SHA384 = 0xad, /* Still TBD, made up */
+    TLS_RSA_WITH_AES_128_CCM_8         = 0xa0,
+    TLS_RSA_WITH_AES_256_CCM_8         = 0xa1,
+    TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 = 0xc6, /* Still TBD, made up */
+    TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8 = 0xc7, /* Still TBD, made up */
+    TLS_PSK_WITH_AES_128_CCM           = 0xa4,
+    TLS_PSK_WITH_AES_256_CCM           = 0xa5,
+    TLS_PSK_WITH_AES_128_CCM_8         = 0xa8,
+    TLS_PSK_WITH_AES_256_CCM_8         = 0xa9,
 
     TLS_RSA_WITH_CAMELLIA_128_CBC_SHA        = 0x41,
     TLS_RSA_WITH_CAMELLIA_256_CBC_SHA        = 0x84,
@@ -591,7 +600,7 @@ enum Misc {
     MASTER_LABEL_SZ     = 13,  /* TLS master secret label sz */
     KEY_LABEL_SZ        = 13,  /* TLS key block expansion sz */
     MAX_PRF_HALF        = 128, /* Maximum half secret len */
-    MAX_PRF_LABSEED     = 80,  /* Maximum label + seed len */
+    MAX_PRF_LABSEED     = 128, /* Maximum label + seed len */
     MAX_PRF_DIG         = 224, /* Maximum digest len      */
     MAX_REQUEST_SZ      = 256, /* Maximum cert req len (no auth yet */
     SESSION_FLUSH_COUNT = 256, /* Flush session cache unless user turns off */ 
@@ -610,11 +619,14 @@ enum Misc {
     AEAD_VMAJ_OFFSET    = 9,        /* Auth Data: Major Version   */
     AEAD_VMIN_OFFSET    = 10,       /* Auth Data: Minor Version   */
     AEAD_LEN_OFFSET     = 11,       /* Auth Data: Length          */
-    AEAD_AUTH_TAG_SZ    = 16,       /* Size of the authentication tag   */
     AEAD_AUTH_DATA_SZ   = 13,       /* Size of the data to authenticate */
     AEAD_IMP_IV_SZ      = 4,        /* Size of the implicit IV     */
     AEAD_EXP_IV_SZ      = 8,        /* Size of the explicit IV     */
     AEAD_NONCE_SZ       = AEAD_EXP_IV_SZ + AEAD_IMP_IV_SZ,
+
+    AES_GCM_AUTH_SZ     = 16, /* AES-GCM Auth Tag length    */
+    AES_CCM_16_AUTH_SZ  = 16, /* AES-CCM-16 Auth Tag length */
+    AES_CCM_8_AUTH_SZ   = 8,  /* AES-CCM-8 Auth Tag Length  */
 
     CAMELLIA_128_KEY_SIZE = 16, /* for 128 bit */
     CAMELLIA_192_KEY_SIZE = 24, /* for 192 bit */
@@ -828,7 +840,7 @@ enum {
        The length (in bytes) of the following TLSPlaintext.fragment.
        The length should not exceed 2^14.
 */
-#if defined(LARGE_STATIC_BUFFERS) || defined(CYASSL_DTLS)
+#if defined(LARGE_STATIC_BUFFERS)
     #define STATIC_BUFFER_LEN RECORD_HEADER_SZ + RECORD_SIZE + COMP_EXTRA + \
              MTU_EXTRA + MAX_MSG_EXTRA
 #else
@@ -841,8 +853,9 @@ typedef struct {
     word32 idx;          /* idx to part of length already consumed */
     byte*  buffer;       /* place holder for static or dynamic buffer */
     word32 bufferSize;   /* current buffer size */
-    byte   dynamicFlag;  /* dynamic memory currently in use */
     ALIGN16 byte staticBuffer[STATIC_BUFFER_LEN];
+    byte   dynamicFlag;  /* dynamic memory currently in use */
+    byte   offset;       /* alignment offset attempt */
 } bufferStatic;
 
 /* Cipher Suites holder */
@@ -884,18 +897,18 @@ int  SetCipherList(Suites*, const char* list);
         CYASSL_LOCAL
         void EmbedOcspRespFree(void*, byte*);
     #endif
-#endif
 
-#ifdef CYASSL_DTLS
-    CYASSL_LOCAL
-    int EmbedReceiveFrom(CYASSL *ssl, char *buf, int sz, void *ctx);
-    CYASSL_LOCAL 
-    int EmbedSendTo(CYASSL *ssl, char *buf, int sz, void *ctx);
-    CYASSL_LOCAL
-    int EmbedGenerateCookie(byte *buf, int sz, void *ctx);
-    CYASSL_LOCAL
-    int IsUDP(void*);
-#endif
+    #ifdef CYASSL_DTLS
+        CYASSL_LOCAL
+        int EmbedReceiveFrom(CYASSL *ssl, char *buf, int sz, void *ctx);
+        CYASSL_LOCAL 
+        int EmbedSendTo(CYASSL *ssl, char *buf, int sz, void *ctx);
+        CYASSL_LOCAL
+        int EmbedGenerateCookie(CYASSL* ssl, byte *buf, int sz, void *ctx);
+        CYASSL_LOCAL
+        int IsUDP(void*);
+    #endif /* CYASSL_DTLS */
+#endif /* CYASSL_USER_IO */
 
 
 /* CyaSSL Cipher type just points back to SSL */
@@ -1132,6 +1145,9 @@ struct CYASSL_CTX {
     byte        groupMessages;    /* group handshake messages before sending */
     CallbackIORecv CBIORecv;
     CallbackIOSend CBIOSend;
+#ifdef CYASSL_DTLS
+    CallbackGenCookie CBIOCookie;       /* gen cookie callback */
+#endif
     VerifyCallback  verifyCallback;     /* cert verification callback */
     word32          timeout;            /* session timeout */
 #ifdef HAVE_ECC
@@ -1191,6 +1207,7 @@ typedef struct CipherSpecs {
     word16 key_size;
     word16 iv_size;
     word16 block_size;
+    word16 aead_mac_size;
 } CipherSpecs;
 
 
@@ -1669,6 +1686,7 @@ struct CYASSL {
     int             dtls_timeout;
     DtlsPool*       dtls_pool;
     DtlsMsg*        dtls_msg_list;
+    void*           IOCB_CookieCtx;     /* gen cookie ctx */
 #endif
 #ifdef CYASSL_CALLBACKS
     HandShakeInfo   handShakeInfo;      /* info saved during handshake */
@@ -1676,7 +1694,7 @@ struct CYASSL {
     byte            hsInfoOn;           /* track handshake info        */
     byte            toInfoOn;           /* track timeout   info        */
 #endif
-#ifdef OPENSSL_EXTRA
+#ifdef KEEP_PEER_CERT
     CYASSL_X509     peerCert;           /* X509 peer cert */
 #endif
 #ifdef FORTRESS
@@ -1913,8 +1931,6 @@ CYASSL_LOCAL  int GrowInputBuffer(CYASSL* ssl, int size, int usedLength);
     
 
 #endif /* NO_TLS */
-
-
 
 typedef double timer_d;
 

@@ -23,6 +23,11 @@
     #include <config.h>
 #endif
 
+#if !defined(CYASSL_TRACK_MEMORY) && !defined(NO_MAIN_DRIVER)
+    /* in case memory tracker wants stats */
+    #define CYASSL_TRACK_MEMORY
+#endif
+
 #include <cyassl/openssl/ssl.h>
 #include <cyassl/test.h>
 
@@ -88,7 +93,7 @@ static void Usage(void)
     printf("server "    LIBCYASSL_VERSION_STRING
            " NOTE: All files relative to CyaSSL home dir\n");
     printf("-?          Help, print this usage\n");
-    printf("-p <num>    Port to listen on, default %d\n", yasslPort);
+    printf("-p <num>    Port to listen on, not 0, default %d\n", yasslPort);
     printf("-v <num>    SSL version [0-3], SSLv3(0) - TLS1.2(3)), default %d\n",
                                  SERVER_DEFAULT_VERSION);
     printf("-l <str>    Cipher list\n");
@@ -98,6 +103,7 @@ static void Usage(void)
     printf("-d          Disable client cert check\n");
     printf("-b          Bind to any interface instead of localhost only\n");
     printf("-s          Use pre Shared keys\n");
+    printf("-t          Track CyaSSL memory use\n");
     printf("-u          Use UDP DTLS,"
            " add -v 2 for DTLSv1 (default), -v 3 for DTLSv1.2\n");
     printf("-N          Use Non-blocking sockets\n");
@@ -114,7 +120,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     SSL*        ssl    = 0;
 
     char   msg[] = "I hear you fa shizzle!";
-    char   input[1024];
+    char   input[80];
     int    idx;
     int    ch;
     int    version = SERVER_DEFAULT_VERSION;
@@ -125,6 +131,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     int    doDTLS = 0;
     int    useNtruKey = 0;
     int    nonBlocking = 0;
+    int    trackMemory = 0;
     char*  cipherList = NULL;
     char*  verifyCert = (char*)cliCert;
     char*  ourCert    = (char*)svrCert;
@@ -139,8 +146,9 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     ourCert    = (char*)eccCert;
     ourKey     = (char*)eccKey;
 #endif
+    (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?dbsnNup:v:l:A:c:k:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?dbstnNup:v:l:A:c:k:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -158,6 +166,12 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
                 usePsk = 1;
                 break;
 
+            case 't' :
+            #ifdef USE_CYASSL_MEMORY
+                trackMemory = 1;
+            #endif
+                break;
+
             case 'n' :
                 useNtruKey = 1;
                 break;
@@ -168,6 +182,10 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
             case 'p' :
                 port = atoi(myoptarg);
+                #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
+                    if (port == 0)
+                        err_sys("port number cannot be 0");
+                #endif
                 break;
 
             case 'v' :
@@ -221,6 +239,11 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
                 version = -1;
         }
     }
+
+#ifdef USE_CYASSL_MEMORY
+    if (trackMemory)
+        InitMemoryTracker(); 
+#endif
 
     switch (version) {
 #ifndef NO_OLD_TLS
@@ -400,6 +423,12 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     
     CloseSocket(clientfd);
     ((func_args*)args)->return_code = 0;
+
+#ifdef USE_CYASSL_MEMORY
+    if (trackMemory)
+        ShowMemoryTracker();
+#endif /* USE_CYASSL_MEMORY */
+
     return 0;
 }
 
@@ -429,7 +458,11 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
         if (CurrentDir("server") || CurrentDir("build"))
             ChangeDirBack(2);
    
+#ifdef HAVE_STACK_SIZE
+        StackSizeCheck(&args, server_test);
+#else 
         server_test(&args);
+#endif
         CyaSSL_Cleanup();
 
 #ifdef HAVE_CAVIUM

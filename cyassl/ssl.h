@@ -758,6 +758,11 @@ CYASSL_API int CyaSSL_get_keys(CYASSL*,unsigned char** ms, unsigned int* msLen,
                                        unsigned char** sr, unsigned int* srLen,
                                        unsigned char** cr, unsigned int* crLen);
 
+/* Computes EAP-TLS and EAP-TTLS keying material from the master_secret. */
+CYASSL_API int CyaSSL_make_eap_keys(CYASSL*, void* key, unsigned int len, 
+                                                             const char* label);
+
+
 #ifndef _WIN32
     #ifndef NO_WRITEV
         #ifdef __PPU
@@ -808,6 +813,11 @@ CYASSL_API void CyaSSL_SetIOWriteCtx(CYASSL* ssl, void *ctx);
 
 CYASSL_API void CyaSSL_SetIOReadFlags( CYASSL* ssl, int flags);
 CYASSL_API void CyaSSL_SetIOWriteFlags(CYASSL* ssl, int flags);
+
+typedef int (*CallbackGenCookie)(CYASSL* ssl, unsigned char* buf, int sz,
+                                 void* ctx);
+CYASSL_API void CyaSSL_CTX_SetGenCookie(CYASSL_CTX*, CallbackGenCookie);
+CYASSL_API void CyaSSL_SetCookieCtx(CYASSL* ssl, void *ctx);
 
 typedef int (*CallbackIOOcsp)(void*, const char*, int,
                                          unsigned char*, int, unsigned char**);
