@@ -708,7 +708,7 @@ static word16 _TLSX_getSize(TLSX* list, byte* cemaphor)
         list = extension->next;
 
         if (IS_OFF(cemaphor, extension->type)) {
-            length += 4; // extension type[2] + extension length[2]
+            length += 4; // extension type[2] + extension data length[2]
 
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
@@ -751,6 +751,7 @@ static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
 {
     TLSX* extension;
     word16 offset = 0;
+    word16 length_offset = 0;
 
     while ((extension = list)) {
         list = extension->next;
@@ -758,14 +759,18 @@ static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
         if (IS_OFF(cemaphor, extension->type)) {
             // extension type[2]
             c16toa(extension->type, output + offset);
-            offset += 2;
+            offset += 4; // extension type[2] + extension data length[2]
+            length_offset = offset;
 
             // extension length[2] and extension data should be written internally
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
-                    offset += SNI_WRITE((SNI *) extension->data, output);
+                    offset += SNI_WRITE((SNI *) extension->data, output + offset);
                 break;
             }
+
+            // writing extension data length[2]
+            c16toa(offset - length_offset, output + length_offset - 2);
 
             TURN_ON(cemaphor, extension->type);
         }
@@ -784,10 +789,10 @@ word16 TLSX_write(CYASSL *ssl, byte* output)
         offset += 2; // extensions length[2]
 
         if (ssl->extensions)
-            offset += _TLSX_write(ssl->extensions, output, cemaphor);
+            offset += _TLSX_write(ssl->extensions, output + offset, cemaphor);
 
         if (ssl->ctx && ssl->ctx->extensions)
-            offset += _TLSX_write(ssl->ctx->extensions, output, cemaphor);
+            offset += _TLSX_write(ssl->ctx->extensions, output + offset, cemaphor);
 
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
