@@ -45,6 +45,11 @@ static int test_client_CyaSSL_new(void);
 static int test_CyaSSL_read_write(void);
 #endif /* NO_RSA */
 #endif /* NO_FILESYSTEM */
+#ifdef HAVE_TLS_EXTENSIONS
+#ifdef HAVE_SNI
+static int test_CyaSSL_UseSNI(void);
+#endif /* HAVE_TLS_EXTENSIONS */
+#endif /* HAVE_SNI */
 
 /* test function helpers */
 static int test_method(CYASSL_METHOD *method, const char *name);
@@ -89,6 +94,11 @@ int ApiTest(void)
     test_CyaSSL_read_write();
 #endif /* NO_RSA */
 #endif /* NO_FILESYSTEM */
+#ifdef HAVE_TLS_EXTENSIONS
+#ifdef HAVE_SNI
+    test_CyaSSL_UseSNI();
+#endif /* HAVE_SNI */
+#endif /* HAVE_TLS_EXTENSIONS */
     test_CyaSSL_Cleanup();
     printf(" End API Tests\n");
 
@@ -208,6 +218,27 @@ int test_CyaSSL_CTX_new(CYASSL_METHOD *method)
 
     return TEST_SUCCESS;
 }
+
+#ifdef HAVE_TLS_EXTENSIONS
+#ifdef HAVE_SNI
+int test_CyaSSL_UseSNI(void)
+{
+    CYASSL_CTX *ctx = CyaSSL_CTX_new(CyaSSLv23_client_method());
+    CYASSL     *ssl = CyaSSL_new(ctx);
+
+    printf(testingFmt, "CyaSSL_CTX_UseSNI()");
+    printf(resultFmt, CyaSSL_CTX_UseSNI(ctx, 0, (void *) "www.yassl.com") ? failed : passed);
+
+    printf(testingFmt, "CyaSSL_UseSNI()");
+    printf(resultFmt, CyaSSL_UseSNI(ssl, 0, (void *) "www.cyassl.com") ? failed : passed);
+
+    CyaSSL_free(ssl);
+    CyaSSL_CTX_free(ctx);
+
+    return TEST_SUCCESS;
+}
+#endif /* HAVE_SNI */
+#endif /* HAVE_TLS_EXTENSIONS */
 
 #if !defined(NO_FILESYSTEM) && !defined(NO_CERTS)
 /* Helper for testing CyaSSL_CTX_use_certificate_file() */
