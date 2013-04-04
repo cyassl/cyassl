@@ -152,6 +152,8 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     char*  ourCert    = (char*)cliCert;
     char*  ourKey     = (char*)cliKey;
 
+    char*  host_name = 0;
+
     int     argc = ((func_args*)args)->argc;
     char**  argv = ((func_args*)args)->argv;
 
@@ -167,7 +169,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     (void)sslResume;
     (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:S:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -252,6 +254,10 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
                 resumeSession = 1;
                 break;
 
+            case 'S' :
+                host_name = myoptarg;
+                break;
+
             default:
                 Usage();
                 exit(MY_EX_USAGE);
@@ -312,6 +318,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 
         default:
             err_sys("Bad SSL version");
+            break;
     }
 
     if (method == NULL)
@@ -392,6 +399,12 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 
 #ifdef HAVE_CAVIUM
     CyaSSL_CTX_UseCavium(ctx, CAVIUM_DEV_ID);
+#endif
+
+#ifdef HAVE_SNI
+    if (host_name)
+        if (CyaSSL_CTX_UseSNI(ctx, 0, host_name, XSTRLEN(host_name)))
+            err_sys("UseSNI failed");
 #endif
 
     if (benchmark) {

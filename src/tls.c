@@ -529,7 +529,7 @@ static void TLSX_SNI_free_all(SNI* list)
     }
 }
 
-static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data)
+static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, size_t size)
 {
     SNI* sni;
 
@@ -541,7 +541,7 @@ static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data)
 
     switch (type) {
         case HOST_NAME: {
-            size_t size = XSTRLEN((char*) data) + 1;
+            size++; // \0
 
             sni->data.host_name = XMALLOC(size, 0, DYNAMIC_TYPE_TLSX);
 
@@ -617,7 +617,7 @@ static word16 TLSX_SNI_write(SNI* list, byte* output)
     return offset;
 }
 
-int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data)
+int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data, size_t size)
 {
     TLSX* extension = NULL;
     SNI*  sni       = NULL;
@@ -626,7 +626,7 @@ int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data)
     if (extensions == NULL)
         return BAD_FUNC_ARG;
 
-    if ((ret = TLSX_SNI_push_new(&sni, type, data)) != 0)
+    if ((ret = TLSX_SNI_push_new(&sni, type, data, size)) != 0)
         return ret;
 
     extension = *extensions;

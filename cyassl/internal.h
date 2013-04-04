@@ -1107,7 +1107,7 @@ typedef struct SNI {
     struct SNI *next;
 } SNI;
 
-int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data);
+int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data, size_t size);
 
 #endif /* HAVE_SNI */
 

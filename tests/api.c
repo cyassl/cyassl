@@ -227,10 +227,10 @@ int test_CyaSSL_UseSNI(void)
     CYASSL     *ssl = CyaSSL_new(ctx);
 
     printf(testingFmt, "CyaSSL_CTX_UseSNI()");
-    printf(resultFmt, CyaSSL_CTX_UseSNI(ctx, 0, (void *) "www.yassl.com") ? failed : passed);
+    printf(resultFmt, CyaSSL_CTX_UseSNI(ctx, 0, (void *) "www.yassl.com", XSTRLEN("www.yassl.com")) ? failed : passed);
 
     printf(testingFmt, "CyaSSL_UseSNI()");
-    printf(resultFmt, CyaSSL_UseSNI(ssl, 0, (void *) "www.cyassl.com") ? failed : passed);
+    printf(resultFmt, CyaSSL_UseSNI(ssl, 0, (void *) "www.cyassl.com", XSTRLEN("www.cyassl.com")) ? failed : passed);
 
     CyaSSL_free(ssl);
     CyaSSL_CTX_free(ctx);

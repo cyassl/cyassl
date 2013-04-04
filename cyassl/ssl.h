@@ -894,8 +894,8 @@ CYASSL_API int CyaSSL_CTX_UseCavium(CYASSL_CTX*, int devId);
 
 /* tls extensions */
 #ifdef HAVE_SNI
-CYASSL_API int CyaSSL_UseSNI(CYASSL* ssl, unsigned char type, void* data);
-CYASSL_API int CyaSSL_CTX_UseSNI(CYASSL_CTX* ctx, unsigned char type, void* data);
+CYASSL_API int CyaSSL_UseSNI(CYASSL* ssl, unsigned char type, void* data, size_t size);
+CYASSL_API int CyaSSL_CTX_UseSNI(CYASSL_CTX* ctx, unsigned char type, void* data, size_t size);
 #endif
 
 #define CYASSL_CRL_MONITOR   0x01   /* monitor this dir flag */
