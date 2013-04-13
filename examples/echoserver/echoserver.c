@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #include <cyassl/ssl.h>
 #include <cyassl/test.h>
 
@@ -98,6 +100,9 @@ THREAD_RETURN CYASSL_THREAD echoserver_test(void* args)
 
     #if defined(NO_MAIN_DRIVER) && !defined(USE_WINDOWS_API)
         port = 0;
+    #endif
+    #if defined(USE_ANY_ADDR)
+        useAnyAddr = 1;
     #endif
     tcp_listen(&sockfd, &port, useAnyAddr, doDTLS);
 

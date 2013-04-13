@@ -14,12 +14,12 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
 AC_USE_SYSTEM_EXTENSIONS
 
-AM_INIT_AUTOMAKE([1.12 -Wall -Werror -Wno-portability foreign tar-ustar subdir-objects serial-tests])
+AM_INIT_AUTOMAKE([1.11 -Wall -Werror -Wno-portability foreign tar-ustar subdir-objects])
 
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
 
-AC_PREREQ([2.65])
+AC_PREREQ([2.63])
 
 
 AC_CONFIG_HEADERS([config.h:config.in])dnl Keep filename to 8.3 for MS-DOS.
@@ -60,6 +60,7 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AX_CXX_COMPILER_VERSION
 
 AC_CHECK_FUNCS([gethostbyname])
+AC_CHECK_FUNCS([getaddrinfo])
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([inet_ntoa])
 AC_CHECK_FUNCS([memset])
@@ -93,7 +94,7 @@ AM_PROG_CC_C_O
 LT_LIB_M
 
 OPTIMIZE_CFLAGS="-Os -fomit-frame-pointer"
-OPTIMIZE_FAST_CFLAGS="-O3 -fomit-frame-pointer"
+OPTIMIZE_FAST_CFLAGS="-O2 -fomit-frame-pointer"
 OPTIMIZE_HUGE_CFLAGS="-funroll-loops -DTFM_SMALL_SET"
 DEBUG_CFLAGS="-g -DDEBUG -DDEBUG_CYASSL"
 
@@ -114,7 +115,8 @@ AC_ARG_ENABLE([singlethreaded],
 AS_IF([ test "x$ENABLED_SINGLETHREADED" = "xno" ],[
        AX_PTHREAD([
                    AC_DEFINE([HAVE_PTHREAD], [1], [Define if you have POSIX threads libraries and header files.])
-                   AM_CFLAGS="-D_POSIX_THREADS $AM_CFLAGS"
+                   AM_CFLAGS="-D_POSIX_THREADS $AM_CFLAGS $PTHREAD_CFLAGS"
+                   LIBS="$LIBS $PTHREAD_LIBS"
                    ],[
                       ENABLED_SINGLETHREADED=yes
                       ])
@@ -288,7 +290,7 @@ fi
 
 if test "$ENABLED_AESGCM" = "yes"
 then
-    AM_CFLAGS="$AM_CFLAGS -DHAVE_AESGCM -DCYASSL_SHA384 -DCYASSL_SHA512"
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_AESGCM"
 fi
 
 AM_CONDITIONAL([BUILD_AESGCM], [test "x$ENABLED_AESGCM" = "xyes"])
@@ -303,7 +305,7 @@ AC_ARG_ENABLE([aesccm],
 
 if test "$ENABLED_AESCCM" = "yes"
 then
-    AM_CFLAGS="$AM_CFLAGS -DHAVE_AESCCM -DCYASSL_SHA384 -DCYASSL_SHA512"
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_AESCCM"
 fi
 
 AM_CONDITIONAL([BUILD_AESCCM], [test "x$ENABLED_AESCCM" = "xyes"])
@@ -322,6 +324,7 @@ then
     if test "$GCC" = "yes"
     then
         # GCC needs these flags, icc doesn't
+        # opt levels greater than 2 may cause problems on systems w/o aesni
         AM_CFLAGS="$AM_CFLAGS -maes -msse4"
     fi
 fi
@@ -419,16 +422,6 @@ then
 fi
 
 if test "$ENABLED_FORTRESS" = "yes"
-then
-    ENABLED_SHA512="yes"
-fi
-
-if test "$ENABLED_AESGCM" = "yes"
-then
-    ENABLED_SHA512="yes"
-fi
-
-if test "$ENABLED_AESCCM" = "yes"
 then
     ENABLED_SHA512="yes"
 fi
@@ -1271,6 +1264,7 @@ AX_HARDEN_CC_COMPILER_FLAGS
 
 # add user C_EXTRA_FLAGS back
 CFLAGS="$CFLAGS $USER_C_EXTRA_FLAGS"
+OPTION_FLAGS="$USER_C_EXTRA_FLAGS $AM_CFLAGS"
 
 CREATE_HEX_VERSION
 AC_SUBST([AM_CPPFLAGS])
@@ -1281,6 +1275,7 @@ AC_SUBST([AM_LDFLAGS])
 AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([cyassl/version.h])
+AC_CONFIG_FILES([cyassl/options.h])
 AC_CONFIG_FILES([support/libcyassl.pc])
 AC_CONFIG_FILES([rpm/spec])
 
@@ -1289,11 +1284,56 @@ AX_AM_JOBSERVER([yes])
 
 AC_OUTPUT
 
+
+# force make clean
 echo "---"
 echo "Running make clean..."
 make clean >/dev/null 2>&1
 echo
 
+# generate user options header 
+echo "---"
+echo "Generating user options header..."
+OPTION_FILE="cyassl/options.h"
+rm -f $OPTION_FILE
+
+echo "/* cyassl options.h" >> $OPTION_FILE 
+echo " * generated from configure options" >> $OPTION_FILE
+echo " *" >> $OPTION_FILE
+echo " * Copyright (C) 2006-2013 wolfSSL Inc." >> $OPTION_FILE
+echo " *" >> $OPTION_FILE
+echo " * This file is part of CyaSSL." >> $OPTION_FILE
+echo " *" >> $OPTION_FILE
+echo " */" >> $OPTION_FILE
+
+echo "" >> $OPTION_FILE 
+echo "#pragma once" >> $OPTION_FILE 
+echo "" >> $OPTION_FILE 
+echo "#ifdef __cplusplus" >> $OPTION_FILE 
+echo "extern \"C\" {" >> $OPTION_FILE 
+echo "#endif" >> $OPTION_FILE 
+echo "" >> $OPTION_FILE 
+
+for option in $OPTION_FLAGS; do
+    defonly=`echo $option | sed 's/-D//'`
+    if test "$defonly" != "$option"
+    then
+        echo "#undef  $defonly" >> $OPTION_FILE 
+        echo "#define $defonly" >> $OPTION_FILE 
+        echo "" >> $OPTION_FILE 
+    else
+        echo "option w/o begin -D is $option, not saving to $OPTION_FILE"
+    fi
+done
+
+echo "" >> $OPTION_FILE 
+echo "#ifdef __cplusplus" >> $OPTION_FILE 
+echo "}" >> $OPTION_FILE 
+echo "#endif" >> $OPTION_FILE 
+echo "" >> $OPTION_FILE 
+echo
+
+# output config summary
 echo "---"
 echo "Configuration summary for $PACKAGE_NAME version $VERSION"
 echo ""

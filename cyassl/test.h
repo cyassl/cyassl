@@ -18,6 +18,7 @@
         #include <wspiapi.h>
     #endif
     #define SOCKET_T unsigned int
+    #define SNPRINTF _snprintf
 #else
     #include <string.h>
     #include <sys/types.h>
@@ -40,6 +41,7 @@
     #ifndef SO_NOSIGPIPE
         #include <signal.h>  /* ignore SIGPIPE */
     #endif
+    #define SNPRINTF snprintf
 #endif /* USE_WINDOWS_API */
 
 #ifdef HAVE_CAVIUM
@@ -62,11 +64,16 @@
 #endif
 
 
-/* HPUX doesn't use socklent_t for third parameter to accept */
+/* HPUX doesn't use socklent_t for third parameter to accept, unless
+   _XOPEN_SOURCE_EXTENDED is defined */
 #if !defined(__hpux__)
     typedef socklen_t* ACCEPT_THIRD_T;
 #else
-    typedef int*       ACCEPT_THIRD_T;
+    #if defined _XOPEN_SOURCE_EXTENDED
+        typedef socklen_t* ACCEPT_THIRD_T;
+    #else
+        typedef int*       ACCEPT_THIRD_T;
+    #endif
 #endif
 
 
@@ -158,7 +165,11 @@ void start_thread(THREAD_FUNC, func_args*, THREAD_TYPE*);
 void join_thread(THREAD_TYPE);
 
 /* yaSSL */
-static const char* const yasslIP   = "127.0.0.1";
+#ifndef TEST_IPV6
+    static const char* const yasslIP   = "127.0.0.1";
+#else
+    static const char* const yasslIP   = "::1";
+#endif
 static const word16      yasslPort = 11111;
 
 
@@ -323,42 +334,72 @@ static INLINE void showPeer(CYASSL* ssl)
 }
 
 
-static INLINE void build_addr(SOCKADDR_IN_T* addr,
-                                const char* peer, word16 port)
+static INLINE void build_addr(SOCKADDR_IN_T* addr, const char* peer,
+                              word16 port, int udp)
 {
-#ifndef TEST_IPV6
-    const char* host = peer;
+    int useLookup = 0;
+    (void)useLookup;
+    (void)udp;
 
+    memset(addr, 0, sizeof(SOCKADDR_IN_T));
+
+#ifndef TEST_IPV6
     /* peer could be in human readable form */
-    if (peer != INADDR_ANY && isalpha(peer[0])) {
+    if (peer != INADDR_ANY && isalpha((int)peer[0])) {
         struct hostent* entry = gethostbyname(peer);
 
         if (entry) {
-            struct sockaddr_in tmp;
-            memset(&tmp, 0, sizeof(struct sockaddr_in));
-            memcpy(&tmp.sin_addr.s_addr, entry->h_addr_list[0],
+            memcpy(&addr->sin_addr.s_addr, entry->h_addr_list[0],
                    entry->h_length);
-            host = inet_ntoa(tmp.sin_addr);
+            useLookup = 1;
         }
         else
             err_sys("no entry for host");
     }
 #endif
 
-    memset(addr, 0, sizeof(SOCKADDR_IN_T));
 
 #ifndef TEST_IPV6
     addr->sin_family = AF_INET_V;
     addr->sin_port = htons(port);
-    if (host == INADDR_ANY)
+    if (peer == INADDR_ANY)
         addr->sin_addr.s_addr = INADDR_ANY;
-    else
-        addr->sin_addr.s_addr = inet_addr(host);
+    else {
+        if (!useLookup)
+            addr->sin_addr.s_addr = inet_addr(peer);
+    }
 #else
-    (void)peer;
     addr->sin6_family = AF_INET_V;
     addr->sin6_port = htons(port);
-    addr->sin6_addr = in6addr_loopback;
+    if (peer == INADDR_ANY)
+        addr->sin6_addr = in6addr_any;
+    else {
+        #ifdef HAVE_GETADDRINFO
+            struct addrinfo  hints;
+            struct addrinfo* answer = NULL;
+            int    ret;
+            char   strPort[80];
+
+            memset(&hints, 0, sizeof(hints));
+
+            hints.ai_family   = AF_INET_V;
+            hints.ai_socktype = udp ? SOCK_DGRAM : SOCK_STREAM;
+            hints.ai_protocol = udp ? IPPROTO_UDP : IPPROTO_TCP;
+
+            SNPRINTF(strPort, sizeof(strPort), "%d", port);
+            strPort[79] = '\0';
+
+            ret = getaddrinfo(peer, strPort, &hints, &answer);
+            if (ret < 0 || answer == NULL)
+                err_sys("getaddrinfo failed");
+
+            memcpy(addr, answer->ai_addr, answer->ai_addrlen);
+            freeaddrinfo(answer);
+        #else
+            printf("no ipv6 getaddrinfo, loopback only tests/examples\n");
+            addr->sin6_addr = in6addr_loopback;
+        #endif
+    }
 #endif
 }
 
@@ -404,7 +445,7 @@ static INLINE void tcp_connect(SOCKET_T* sockfd, const char* ip, word16 port,
                                int udp)
 {
     SOCKADDR_IN_T addr;
-    build_addr(&addr, ip, port);
+    build_addr(&addr, ip, port, udp);
     tcp_socket(sockfd, udp);
 
     if (!udp) {
@@ -462,7 +503,7 @@ static INLINE void tcp_listen(SOCKET_T* sockfd, int* port, int useAnyAddr,
 
     /* don't use INADDR_ANY by default, firewall may block, make user switch
        on */
-    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), *port);
+    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), *port, udp);
     tcp_socket(sockfd, udp);
 
 #ifndef USE_WINDOWS_API 
@@ -482,11 +523,15 @@ static INLINE void tcp_listen(SOCKET_T* sockfd, int* port, int useAnyAddr,
             err_sys("tcp listen failed");
     }
     #if defined(NO_MAIN_DRIVER) && !defined(USE_WINDOWS_API)
-        if (*port == 0)
-        {
+        if (*port == 0) {
             socklen_t len = sizeof(addr);
-            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0)
-                *port = ntohs(addr.sin_port);
+            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0) {
+                #ifndef TEST_IPV6
+                    *port = ntohs(addr.sin_port);
+                #else
+                    *port = ntohs(addr.sin6_port);
+                #endif
+            }
         }
     #endif
 }
@@ -518,7 +563,7 @@ static INLINE void udp_accept(SOCKET_T* sockfd, int* clientfd, int useAnyAddr,
     SOCKADDR_IN_T addr;
 
     (void)args;
-    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), port);
+    build_addr(&addr, (useAnyAddr ? INADDR_ANY : yasslIP), port, 1);
     tcp_socket(sockfd, 1);
 
 
@@ -536,11 +581,15 @@ static INLINE void udp_accept(SOCKET_T* sockfd, int* clientfd, int useAnyAddr,
         err_sys("tcp bind failed");
 
     #if defined(NO_MAIN_DRIVER) && !defined(USE_WINDOWS_API)
-        if (port == 0)
-        {
+        if (port == 0) {
             socklen_t len = sizeof(addr);
-            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0)
-                port = ntohs(addr.sin_port);
+            if (getsockname(*sockfd, (struct sockaddr*)&addr, &len) == 0) {
+                #ifndef TEST_IPV6
+                    port = ntohs(addr.sin_port);
+                #else
+                    port = ntohs(addr.sin6_port);
+                #endif
+            }
         }
     #endif
 
@@ -1137,7 +1186,29 @@ static INLINE void StackSizeCheck(func_args* args, thread_func tf)
 
 #endif /* HAVE_STACK_SIZE */
 
+#ifdef __hpux__
 
+/* HP/UX doesn't have strsep, needed by test/suites.c */
+static INLINE char* strsep(char **stringp, const char *delim)
+{
+    char* start;
+    char* end;
+
+    start = *stringp;
+    if (start == NULL)
+        return NULL;
+
+    if ((end = strpbrk(start, delim))) {
+        *end++ = '\0';
+        *stringp = end;
+    } else {
+        *stringp = NULL;
+    }
+
+    return start;
+}
+
+#endif /* __hpux__ */
 
 #endif /* CyaSSL_TEST_H */
 

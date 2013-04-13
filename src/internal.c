@@ -24,6 +24,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #include <cyassl/internal.h>
 #include <cyassl/error.h>
 #include <cyassl/ctaocrypt/asn.h>
@@ -60,6 +62,11 @@
     #error OPENSSL_EXTRA needs DH, please remove NO_DH
 #endif
 
+#if defined(CYASSL_CALLBACKS) && !defined(LARGE_STATIC_BUFFERS)
+    #error \
+CYASSL_CALLBACKS needs LARGE_STATIC_BUFFERS, please add LARGE_STATIC_BUFFERS
+#endif
+
 
 #ifndef NO_CYASSL_CLIENT
     static int DoHelloVerifyRequest(CYASSL* ssl, const byte* input, word32*);
@@ -91,7 +98,7 @@ typedef enum {
 } processReply;
 
 #ifndef NO_OLD_TLS
-static void Hmac(CYASSL* ssl, byte* digest, const byte* buffer, word32 sz,
+static void Hmac(CYASSL* ssl, byte* digest, const byte* in, word32 sz,
                  int content, int verify);
 
 #endif
@@ -2071,6 +2078,15 @@ ProtocolVersion MakeDTLSv1_2(void)
         #endif
         return (word32)clk;
     }
+
+
+#elif defined(MICROCHIP_TCPIP)
+
+    word32 LowResTimer(void)
+    {
+        return (word32) TickGet();
+    }
+
 
 #elif defined(USER_TICKS)
 #if 0
@@ -4167,6 +4183,9 @@ static int DoAlert(CYASSL* ssl, byte* input, word32* inOutIdx, int* type)
     ssl->alert_history.last_rx.code = code;
     ssl->alert_history.last_rx.level = level;
     *type = code;
+    if (level == alert_fatal) {
+        ssl->options.isClosed = 1;  /* Don't send close_notify */
+    }
 
     CYASSL_MSG("Got alert");
     if (*type == close_notify) {
@@ -5193,7 +5212,6 @@ int ReceiveData(CYASSL* ssl, byte* output, int sz, int peek)
             CYASSL_ERROR(ssl->error);
             if (ssl->error == ZERO_RETURN) {
                 CYASSL_MSG("Zero return, no more data coming");
-                ssl->options.isClosed = 1;  /* Don't send close_notify */
                 return 0;         /* no more data coming */
             }
             if (ssl->error == SOCKET_ERROR_E) {
@@ -5261,6 +5279,9 @@ int SendAlert(CYASSL* ssl, int severity, int type)
     input[1] = (byte)type;
     ssl->alert_history.last_tx.code = type;
     ssl->alert_history.last_tx.level = severity;
+    if (severity == alert_fatal) {
+        ssl->options.isClosed = 1;  /* Don't send close_notify */
+    }
 
     /* only send encrypted alert if handshake actually complete, otherwise
        other side may not be able to handle it */
@@ -6432,6 +6453,7 @@ int SetCipherList(Suites* s, const char* list)
     void FreeTimeoutInfo(TimeoutInfo* info, void* heap)
     {
         int i;
+        (void)heap;
         for (i = 0; i < MAX_PACKETS_HANDSHAKE; i++)
             if (info->packets[i].bufferValue) {
                 XFREE(info->packets[i].bufferValue, heap, DYNAMIC_TYPE_INFO);
@@ -8478,23 +8500,11 @@ int SetCipherList(Suites* s, const char* list)
                 return 1;
             break;
 
-        case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 :
-        case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8 :
-            if (requirement == REQUIRES_ECC_DSA)
-                return 1;
-            break;
-
         case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 :
         case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 :
             if (requirement == REQUIRES_RSA)
                 return 1;
             if (requirement == REQUIRES_RSA_SIG)
-                return 1;
-            break;
-
-        case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384 :
-        case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 :
-            if (requirement == REQUIRES_ECC_DSA)
                 return 1;
             break;
 
@@ -8505,6 +8515,19 @@ int SetCipherList(Suites* s, const char* list)
             if (requirement == REQUIRES_ECC_STATIC)
                 return 1;
             break;
+#endif
+
+        case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 :
+        case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8 :
+            if (requirement == REQUIRES_ECC_DSA)
+                return 1;
+            break;
+
+        case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384 :
+        case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 :
+            if (requirement == REQUIRES_ECC_DSA)
+                return 1;
+            break;
 
         case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256 :
         case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384 :
@@ -8513,7 +8536,6 @@ int SetCipherList(Suites* s, const char* list)
             if (requirement == REQUIRES_ECC_STATIC)
                 return 1;
             break;
-#endif
 
         default:
             CYASSL_MSG("Unsupported cipher suite, CipherRequires ECC");
@@ -9112,7 +9134,7 @@ int SetCipherList(Suites* s, const char* list)
                         return BUFFER_ERROR;
                     if (i + b > totalSz)
                         return INCOMPLETE_DATA;
-                    if (ssl->ctx->CBIORecv == NULL) {
+                    if (ssl->ctx->CBIOCookie == NULL) {
                         CYASSL_MSG("Your Cookie callback is null, please set");
                         return COOKIE_ERROR;
                     }
@@ -9427,7 +9449,7 @@ int SetCipherList(Suites* s, const char* list)
         output[idx++] =  ssl->chVersion.minor;
 
         output[idx++] = cookieSz;
-        if (ssl->ctx->CBIORecv == NULL) {
+        if (ssl->ctx->CBIOCookie == NULL) {
             CYASSL_MSG("Your Cookie callback is null, please set");
             return COOKIE_ERROR;
         }

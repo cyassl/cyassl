@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #ifdef HAVE_ERRNO_H 
     #include <errno.h>
 #endif
@@ -133,6 +135,10 @@ CYASSL_CTX* CyaSSL_CTX_new(CYASSL_METHOD* method)
             CyaSSL_CTX_free(ctx);
             ctx = NULL;
         }
+    }
+    else {
+        CYASSL_MSG("Alloc CTX failed, method freed");
+        XFREE(method, NULL, DYNAMIC_TYPE_METHOD);
     }
 
     CYASSL_LEAVE("CYASSL_CTX_new", 0);
@@ -302,22 +308,47 @@ int CyaSSL_GetObjectSize(void)
 #ifdef SHOW_SIZES
     printf("sizeof suites           = %lu\n", sizeof(Suites));
     printf("sizeof ciphers(2)       = %lu\n", sizeof(Ciphers));
-    printf("\tsizeof arc4           = %lu\n", sizeof(Arc4));
-    printf("\tsizeof aes            = %lu\n", sizeof(Aes));
-    printf("\tsizeof des3           = %lu\n", sizeof(Des3));
-    printf("\tsizeof rabbit         = %lu\n", sizeof(Rabbit));
+#ifndef NO_RC4
+    printf("    sizeof arc4         = %lu\n", sizeof(Arc4));
+#endif
+    printf("    sizeof aes          = %lu\n", sizeof(Aes));
+#ifndef NO_DES3
+    printf("    sizeof des3         = %lu\n", sizeof(Des3));
+#endif
+#ifndef NO_RABBIT
+    printf("    sizeof rabbit       = %lu\n", sizeof(Rabbit));
+#endif
     printf("sizeof cipher specs     = %lu\n", sizeof(CipherSpecs));
     printf("sizeof keys             = %lu\n", sizeof(Keys));
-    printf("sizeof MD5              = %lu\n", sizeof(Md5));
-    printf("sizeof SHA              = %lu\n", sizeof(Sha));
-    printf("sizeof SHA256           = %lu\n", sizeof(Sha256));
     printf("sizeof Hashes(2)        = %lu\n", sizeof(Hashes));
+#ifndef NO_MD5
+    printf("    sizeof MD5          = %lu\n", sizeof(Md5));
+#endif
+#ifndef NO_SHA
+    printf("    sizeof SHA          = %lu\n", sizeof(Sha));
+#endif
+#ifndef NO_SHA256
+    printf("    sizeof SHA256       = %lu\n", sizeof(Sha256));
+#endif
+#ifdef CYASSL_SHA384
+    printf("    sizeof SHA384       = %lu\n", sizeof(Sha384));
+#endif
+#ifdef CYASSL_SHA384
+    printf("    sizeof SHA512       = %lu\n", sizeof(Sha512));
+#endif
     printf("sizeof Buffers          = %lu\n", sizeof(Buffers));
     printf("sizeof Options          = %lu\n", sizeof(Options));
     printf("sizeof Arrays           = %lu\n", sizeof(Arrays));
-    printf("sizeof Session          = %lu\n", sizeof(CYASSL_SESSION));
-    printf("sizeof peerKey          = %lu\n", sizeof(RsaKey));
+#ifndef NO_RSA
+    printf("sizeof RsaKey           = %lu\n", sizeof(RsaKey));
+#endif
+#ifdef HAVE_ECC
+    printf("sizeof ecc_key          = %lu\n", sizeof(ecc_key));
+#endif
     printf("sizeof CYASSL_CIPHER    = %lu\n", sizeof(CYASSL_CIPHER));
+    printf("sizeof CYASSL_SESSION   = %lu\n", sizeof(CYASSL_SESSION));
+    printf("sizeof CYASSL           = %lu\n", sizeof(CYASSL));
+    printf("sizeof CYASSL_CTX       = %lu\n", sizeof(CYASSL_CTX));
 #endif
 
     return sizeof(CYASSL);
@@ -1530,6 +1561,47 @@ static int ProcessChainBuffer(CYASSL_CTX* ctx, const unsigned char* buff,
 }
 
 
+/* Verify the ceritficate, 1 for success, < 0 for error */
+int CyaSSL_CertManagerVerifyBuffer(CYASSL_CERT_MANAGER* cm, const byte* buff,
+                                   long sz, int format)
+{
+    int ret = 0;
+    int eccKey = 0;  /* not used */
+
+    DecodedCert cert;
+    buffer      der;
+
+    CYASSL_ENTER("CyaSSL_CertManagerVerifyBuffer");
+
+    der.buffer = NULL;
+    der.length = 0;
+
+    if (format == SSL_FILETYPE_PEM) { 
+        EncryptedInfo info;
+            
+        info.set      = 0;
+        info.ctx      = NULL;
+        info.consumed = 0;
+        ret = PemToDer(buff, sz, CERT_TYPE, &der, cm->heap, &info, &eccKey);
+        InitDecodedCert(&cert, der.buffer, der.length, cm->heap);
+    }
+    else
+        InitDecodedCert(&cert, (byte*)buff, (word32)sz, cm->heap);
+
+    if (ret == 0)
+        ret = ParseCertRelative(&cert, CERT_TYPE, 1, cm);
+#ifdef HAVE_CRL
+    if (ret == 0 && cm->crlEnabled)
+        ret = CheckCertCRL(cm->crl, &cert);
+#endif
+
+    FreeDecodedCert(&cert);
+    XFREE(der.buffer, cm->heap, DYNAMIC_TYPE_CERT);
+
+    return ret;
+}
+
+
 #ifndef NO_FILESYSTEM
 
 #if defined(EBSNET)
@@ -1721,47 +1793,6 @@ int CyaSSL_CTX_load_verify_locations(CYASSL_CTX* ctx, const char* file,
         closedir(dir);
     #endif
     }
-
-    return ret;
-}
-
-
-/* Verify the ceritficate, 1 for success, < 0 for error */
-int CyaSSL_CertManagerVerifyBuffer(CYASSL_CERT_MANAGER* cm, const byte* buff,
-                                   long sz, int format)
-{
-    int ret = 0;
-    int eccKey = 0;  /* not used */
-
-    DecodedCert cert;
-    buffer      der;
-
-    CYASSL_ENTER("CyaSSL_CertManagerVerifyBuffer");
-
-    der.buffer = NULL;
-    der.length = 0;
-
-    if (format == SSL_FILETYPE_PEM) { 
-        EncryptedInfo info;
-            
-        info.set      = 0;
-        info.ctx      = NULL;
-        info.consumed = 0;
-        ret = PemToDer(buff, sz, CERT_TYPE, &der, cm->heap, &info, &eccKey);
-        InitDecodedCert(&cert, der.buffer, der.length, cm->heap);
-    }
-    else
-        InitDecodedCert(&cert, (byte*)buff, (word32)sz, cm->heap);
-
-    if (ret == 0)
-        ret = ParseCertRelative(&cert, CERT_TYPE, 1, cm);
-#ifdef HAVE_CRL
-    if (ret == 0 && cm->crlEnabled)
-        ret = CheckCertCRL(cm->crl, &cert);
-#endif
-
-    FreeDecodedCert(&cert);
-    XFREE(der.buffer, cm->heap, DYNAMIC_TYPE_CERT);
 
     return ret;
 }
@@ -3115,6 +3146,9 @@ int CyaSSL_Cleanup(void)
 
     CYASSL_ENTER("CyaSSL_Cleanup");
 
+    if (initRefCount == 0)
+        return 0;  /* possibly no init yet */
+
     if (LockMutex(&count_mutex) != 0) {
         CYASSL_MSG("Bad Lock Mutex count");
         return BAD_MUTEX_ERROR;
@@ -3515,7 +3549,7 @@ int CyaSSL_set_compression(CYASSL* ssl)
         do {                                        \
             c.tv_sec  = a.tv_sec  + b.tv_sec;       \
             c.tv_usec = a.tv_usec + b.tv_usec;      \
-            if (c.tv_sec >=  1000000) {             \
+            if (c.tv_usec >=  1000000) {            \
                 c.tv_sec++;                         \
                 c.tv_usec -= 1000000;               \
             }                                       \
@@ -3526,7 +3560,7 @@ int CyaSSL_set_compression(CYASSL* ssl)
         do {                                        \
             c.tv_sec  = a.tv_sec  - b.tv_sec;       \
             c.tv_usec = a.tv_usec - b.tv_usec;      \
-            if (c.tv_sec < 0) {                     \
+            if (c.tv_usec < 0) {                    \
                 c.tv_sec--;                         \
                 c.tv_usec += 1000000;               \
             }                                       \
@@ -3541,6 +3575,7 @@ int CyaSSL_set_compression(CYASSL* ssl)
     /* do nothing handler */
     static void myHandler(int signo)
     {
+        (void)signo;
         return;
     }
 
@@ -5510,13 +5545,6 @@ int CyaSSL_set_compression(CYASSL* ssl)
     }
 
 
-    int CyaSSL_get_shutdown(const CYASSL* ssl)
-    {
-        (void)ssl;
-        return 0;
-    }
-
-
     int CyaSSL_set_session_id_context(CYASSL* ssl, const unsigned char* id,
                                    unsigned int len)
     {
@@ -5533,6 +5561,14 @@ int CyaSSL_set_compression(CYASSL* ssl)
         /* client by default */ 
     }
 #endif
+
+    int CyaSSL_get_shutdown(const CYASSL* ssl)
+    {
+        return (ssl->options.isClosed  ||
+                ssl->options.connReset ||
+                ssl->options.sentNotify);
+    }
+
 
     int CyaSSL_session_reused(CYASSL* ssl)
     {
@@ -6661,8 +6697,10 @@ int CyaSSL_set_compression(CYASSL* ssl)
         *outSz = (int)x509->derCert.length;
         return x509->derCert.buffer;
     }  
+#endif /* OPENSSL_EXTRA */
 
 
+#ifdef KEEP_PEER_CERT
     char*  CyaSSL_X509_get_subjectCN(CYASSL_X509* x509)
     {
         if (x509 == NULL)
@@ -6670,7 +6708,9 @@ int CyaSSL_set_compression(CYASSL* ssl)
 
         return x509->subjectCN;
     }
+#endif /* KEEP_PEER_CERT */
 
+#ifdef OPENSSL_EXTRA
 
 #ifdef FORTRESS
     int CyaSSL_cmp_peer_cert_to_file(CYASSL* ssl, const char *fname)

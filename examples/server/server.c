@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #if !defined(CYASSL_TRACK_MEMORY) && !defined(NO_MAIN_DRIVER)
     /* in case memory tracker wants stats */
     #define CYASSL_TRACK_MEMORY
@@ -481,14 +483,14 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
     int srvHandShakeCB(HandShakeInfo* info)
     {
-
+        (void)info;
         return 0;
     }
 
 
     int srvTimeoutCB(TimeoutInfo* info)
     {
-
+        (void)info;
         return 0;
     }
 

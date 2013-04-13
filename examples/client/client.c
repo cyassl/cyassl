@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #if !defined(CYASSL_TRACK_MEMORY) && !defined(NO_MAIN_DRIVER)
     /* in case memory tracker wants stats */
     #define CYASSL_TRACK_MEMORY
@@ -111,6 +113,9 @@ static void Usage(void)
     printf("-m          Match domain name in cert\n");
     printf("-N          Use Non-blocking sockets\n");
     printf("-r          Resume session\n");
+#ifdef SHOW_SIZES
+    printf("-z          Print structure sizes\n");
+#endif
 }
 
 
@@ -169,7 +174,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     (void)sslResume;
     (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:S:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:z:S")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -252,6 +257,12 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 
             case 'r' :
                 resumeSession = 1;
+                break;
+
+            case 'z' :
+                #ifndef CYASSL_LEANPSK
+                    CyaSSL_GetObjectSize();
+                #endif
                 break;
 
             case 'S' :
@@ -441,7 +452,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
         err_sys("unable to get SSL object");
     if (doDTLS) {
         SOCKADDR_IN_T addr;
-        build_addr(&addr, host, port);
+        build_addr(&addr, host, port, 1);
         CyaSSL_dtls_set_peer(ssl, &addr, sizeof(addr));
         tcp_socket(&sockfd, 1);
     }
@@ -540,7 +551,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
             #else
                 sleep(1);
             #endif
-            build_addr(&addr, host, port);
+            build_addr(&addr, host, port, 1);
             CyaSSL_dtls_set_peer(sslResume, &addr, sizeof(addr));
             tcp_socket(&sockfd, 1);
         }
@@ -659,14 +670,14 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 
     int handShakeCB(HandShakeInfo* info)
     {
-
+        (void)info;
         return 0;
     }
 
 
     int timeoutCB(TimeoutInfo* info)
     {
-
+        (void)info;
         return 0;
     }
 

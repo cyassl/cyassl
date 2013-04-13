@@ -6,6 +6,7 @@
 # save current config
 echo "\n\nSaving current config\n\n"
 cp config.status tmp.status
+cp cyassl/options.h tmp.options.h 
 
 # stash modified files not part of this commit, don't test them
 echo "\n\nStashing any modified files not part of commit\n\n"
@@ -25,6 +26,7 @@ echo "\nRestoring current config\n"
 mv tmp.status config.status
 # don't show output incase error from above
 ./config.status >/dev/null 2>&1
+mv tmp.options.h cyassl/options.h 
 make clean >/dev/null 2>&1
 make -j 8 >/dev/null 2>&1
 

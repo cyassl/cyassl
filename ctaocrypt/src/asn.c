@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #ifndef NO_ASN
 
 #ifdef THREADX
@@ -91,6 +93,11 @@
     #endif
     #define NO_TIME_H
     /* since Micrium not defining XTIME or XGMTIME, CERT_GEN not available */
+#elif defined(MICROCHIP_TCPIP)
+    #include <time.h>
+    #define XTIME(t1) pic32_time((t1))
+    #define XGMTIME(c) gmtime((c))
+    #define XVALIDATE_DATE(d, f, t) ValidateDate((d), (f), (t))
 #elif defined(USER_TIME)
     /* user time, and gmtime compatible functions, there is a gmtime 
        implementation here that WINCE uses, so really just need some ticks
@@ -235,6 +242,29 @@ struct tm* my_gmtime(const time_t* timer)       /* has a gmtime() but hangs */
 }
 
 #endif /* THREADX */
+
+
+#ifdef MICROCHIP_TCPIP
+
+/*
+ * time() is just a stub in Microchip libraries. We need our own
+ * implementation. Use SNTP client to get seconds since epoch.
+ */
+time_t pic32_time(time_t* timer)
+{
+    DWORD sec = 0;
+    time_t localTime;
+
+    if (timer == NULL)
+        timer = &localTime;
+
+    sec = SNTPGetUTCSeconds();
+    *timer = (time_t) sec;
+
+    return *timer;
+}
+
+#endif /* MICROCHIP_TCPIP */
 
 
 static INLINE word32 btoi(byte b)
@@ -1436,9 +1466,7 @@ static int GetKey(DecodedCert* cert)
 /* process NAME, either issuer or subject */
 static int GetName(DecodedCert* cert, int nameType)
 {
-#ifndef NO_SHA
-    Sha    sha;
-#endif
+    Sha    sha;     /* MUST have SHA-1 hash for cert names */
     int    length;  /* length of all distinguished names */
     int    dummy;
     char* full = (nameType == ISSUER) ? cert->issuer : cert->subject;
@@ -1463,14 +1491,12 @@ static int GetName(DecodedCert* cert, int nameType)
     if (GetSequence(cert->source, &cert->srcIdx, &length, cert->maxIdx) < 0)
         return ASN_PARSE_E;
 
-#ifndef NO_SHA
     InitSha(&sha);
     ShaUpdate(&sha, &cert->source[idx], length + cert->srcIdx - idx);
     if (nameType == ISSUER)
         ShaFinal(&sha, cert->issuerHash);
     else
         ShaFinal(&sha, cert->subjectHash);
-#endif
 
     length += cert->srcIdx;
     idx = 0;
@@ -2774,10 +2800,19 @@ int DerToPem(const byte* der, word32 derSz, byte* output, word32 outSz,
     if (type == CERT_TYPE) {
         XSTRNCPY(header, "-----BEGIN CERTIFICATE-----\n", sizeof(header));
         XSTRNCPY(footer, "-----END CERTIFICATE-----\n", sizeof(footer));
-    } else {
+    }
+    else if (type == PRIVATEKEY_TYPE) {
         XSTRNCPY(header, "-----BEGIN RSA PRIVATE KEY-----\n", sizeof(header));
         XSTRNCPY(footer, "-----END RSA PRIVATE KEY-----\n", sizeof(footer));
     }
+    #ifdef HAVE_ECC
+    else if (type == ECC_PRIVATEKEY_TYPE) {
+        XSTRNCPY(header, "-----BEGIN EC PRIVATE KEY-----\n", sizeof(header));
+        XSTRNCPY(footer, "-----END EC PRIVATE KEY-----\n", sizeof(footer));
+    }
+    #endif
+    else
+        return BAD_FUNC_ARG;
 
     headerLen = (int)XSTRLEN(header);
     footerLen = (int)XSTRLEN(footer);
@@ -2794,7 +2829,7 @@ int DerToPem(const byte* der, word32 derSz, byte* output, word32 outSz,
     i = headerLen;
 
     /* body */
-    outLen = outSz;  /* input to Base64_Encode */
+    outLen = outSz - (headerLen + footerLen);  /* input to Base64_Encode */
     if ( (err = Base64_Encode(der, derSz, output + i, (word32*)&outLen)) < 0)
         return err;
     i += outLen;

@@ -23,6 +23,8 @@
     #include <config.h>
 #endif
 
+#include <cyassl/ctaocrypt/settings.h>
+
 #ifdef CYASSL_TEST_CERT
     #include <cyassl/ctaocrypt/asn.h>
 #else
@@ -1060,7 +1062,7 @@ int hmac_md5_test(void)
 }
 #endif /* NO_HMAC && NO_MD5 */
 
-#ifndef NO_HMAC
+#if !defined(NO_HMAC) && !defined(NO_SHA)
 int hmac_sha_test(void)
 {
     Hmac hmac;
