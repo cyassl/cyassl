@@ -490,7 +490,7 @@ static int TLSX_push_new(TLSX** list, TLSX_Type type)
 {
     TLSX* extension;
 
-    if (list == NULL) // won't check type since this function is static.
+    if (list == NULL) /* won't check type since this function is static */
         return BAD_FUNC_ARG;
 
     if ((extension = XMALLOC(sizeof(TLSX), 0, DYNAMIC_TYPE_TLSX)) == NULL)
@@ -531,7 +531,7 @@ static void TLSX_SNI_free_all(SNI* list)
     }
 }
 
-static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, size_t size)
+static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, word16 size)
 {
     SNI* sni;
 
@@ -543,12 +543,11 @@ static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, size_t size)
 
     switch (type) {
         case HOST_NAME: {
-            size++; // \0
-
-            sni->data.host_name = XMALLOC(size, 0, DYNAMIC_TYPE_TLSX);
+            sni->data.host_name = XMALLOC(size + 1, 0, DYNAMIC_TYPE_TLSX);
 
             if (sni->data.host_name) {
                 XSTRNCPY(sni->data.host_name, (char*) data, size);
+                sni->data.host_name[size] = 0;
             } else {
                 XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
                 return MEMORY_E;
@@ -556,7 +555,7 @@ static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, size_t size)
         }
         break;
 
-        default: // invalid type
+        default: /* invalid type */
             XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
             return BAD_FUNC_ARG;
         break;
@@ -572,12 +571,12 @@ static int TLSX_SNI_push_new(SNI** list, SNI_Type type, void* data, size_t size)
 static word16 TLSX_SNI_getSize(SNI* list)
 {
     SNI* sni;
-    word16 length = 2; // server name list length[2]
+    word16 length = OPAQUE16_LEN; /* list length */
 
     while ((sni = list)) {
         list = sni->next;
 
-        length += 3; // server name type[1] + server name length[2]
+        length += ENUM_LEN + OPAQUE16_LEN; /* sni type + sni length */
 
         switch (sni->type) {
             case HOST_NAME:
@@ -593,19 +592,19 @@ static word16 TLSX_SNI_write(SNI* list, byte* output)
 {
     SNI* sni;
     word16 length = 0;
-    word16 offset = 2; // server name list length[2] offset
+    word16 offset = OPAQUE16_LEN; /* list length offset */
 
     while ((sni = list)) {
         list = sni->next;
 
-        output[offset++] = sni->type; // server name type[1]
+        output[offset++] = sni->type; /* sni type */
 
         switch (sni->type) {
             case HOST_NAME:
                 length = XSTRLEN((char*) sni->data.host_name);
 
-                c16toa(length, output + offset); // server name length[2]
-                offset += 2;
+                c16toa(length, output + offset); /* sni length */
+                offset += OPAQUE16_LEN;
 
                 XMEMCPY(output + offset, sni->data.host_name, length);
 
@@ -614,12 +613,12 @@ static word16 TLSX_SNI_write(SNI* list, byte* output)
         }
     }
 
-    c16toa(offset - 2, output); // writing server name list length[2]
+    c16toa(offset - OPAQUE16_LEN, output); /* writing list length */
 
     return offset;
 }
 
-int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data, size_t size)
+int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size)
 {
     TLSX* extension = NULL;
     SNI*  sni       = NULL;
@@ -710,7 +709,7 @@ static word16 _TLSX_getSize(TLSX* list, byte* cemaphor)
         list = extension->next;
 
         if (IS_OFF(cemaphor, extension->type)) {
-            length += 4; // extension type[2] + extension data length[2]
+            length += HELLO_EXT_TYPE_SZ + OPAQUE16_LEN; /* type + data length */
 
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
@@ -744,7 +743,7 @@ word16 TLSX_getSize(CYASSL* ssl)
     }
 
     if (length)
-        length += 2;
+        length += OPAQUE16_LEN; /* for total length storage */
 
     return length;
 }
@@ -759,20 +758,20 @@ static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
         list = extension->next;
 
         if (IS_OFF(cemaphor, extension->type)) {
-            // extension type[2]
+            /* extension type */
             c16toa(extension->type, output + offset);
-            offset += 4; // extension type[2] + extension data length[2]
+            offset += HELLO_EXT_TYPE_SZ + OPAQUE16_LEN;
             length_offset = offset;
 
-            // extension length[2] and extension data should be written internally
+            /* extension data should be written internally */
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
                     offset += SNI_WRITE((SNI *) extension->data, output + offset);
                 break;
             }
 
-            // writing extension data length[2]
-            c16toa(offset - length_offset, output + length_offset - 2);
+            /* writing extension data length */
+            c16toa(offset - length_offset, output + length_offset - OPAQUE16_LEN);
 
             TURN_ON(cemaphor, extension->type);
         }
@@ -781,14 +780,14 @@ static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
     return offset;
 }
 
-word16 TLSX_write(CYASSL *ssl, byte* output)
+word16 TLSX_write(CYASSL* ssl, byte* output)
 {
     word16 offset = 0;
 
     if (ssl && IsTLS(ssl) && output) {
         byte cemaphor[16] = {0};
 
-        offset += 2; // extensions length[2]
+        offset += OPAQUE16_LEN; /* extensions length */
 
         if (ssl->extensions)
             offset += _TLSX_write(ssl->extensions, output + offset, cemaphor);
@@ -799,28 +798,31 @@ word16 TLSX_write(CYASSL *ssl, byte* output)
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
             int i;
-
+            /* extension type */
             c16toa(HELLO_EXT_SIG_ALGO, output + offset);
-            offset += 2;
+            offset += HELLO_EXT_TYPE_SZ;
 
-            c16toa(HELLO_EXT_SIGALGO_SZ + ssl->suites->hashSigAlgoSz, output + offset);
-            offset += 2;
+            /* extension data length */
+            c16toa(OPAQUE16_LEN + ssl->suites->hashSigAlgoSz, output + offset);
+            offset += OPAQUE16_LEN;
 
+            /* sig algos length */
             c16toa(ssl->suites->hashSigAlgoSz, output + offset);
-            offset += 2;
+            offset += OPAQUE16_LEN;
 
+            /* sig algos */
             for (i = 0; i < ssl->suites->hashSigAlgoSz; i++, offset++)
                 output[offset] = ssl->suites->hashSigAlgo[i];
         }
 
-        if (offset > 2)
-            c16toa(offset - 2, output); // extensions length[2]
+        if (offset > OPAQUE16_LEN)
+            c16toa(offset - OPAQUE16_LEN, output); /* extensions length */
     }
 
     return offset;
 }
 
-// undefining cemaphor macros
+/* undefining cemaphor macros */
 #undef IS_OFF
 #undef TURN_ON
 

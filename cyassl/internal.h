@@ -585,17 +585,19 @@ enum Misc {
     COOKIE_SZ    = 20,         /* use a 20 byte cookie    */
     SUITE_LEN    =  2,         /* cipher suite sz length  */
     ENUM_LEN     =  1,         /* always a byte           */
+    OPAQUE16_LEN =  2,         /* always 2 bytes          */
     COMP_LEN     =  1,         /* compression length      */
     CURVE_LEN    =  2,         /* ecc named curve length  */
     
-    HANDSHAKE_HEADER_SZ = 4,   /* type + length(3)        */
-    RECORD_HEADER_SZ    = 5,   /* type + version + len(2) */
-    CERT_HEADER_SZ      = 3,   /* always 3 bytes          */
-    REQ_HEADER_SZ       = 2,   /* cert request header sz  */
-    HINT_LEN_SZ         = 2,   /* length of hint size field */
-    HELLO_EXT_SZ        = 8,  /* total length of the lazy hello extensions */
-    HELLO_EXT_LEN       = 6,  /* length of the lazy hello extensions */
-    HELLO_EXT_SIGALGO_SZ  = 2, /* length of signature algo extension  */
+    HANDSHAKE_HEADER_SZ   = 4,  /* type + length(3)        */
+    RECORD_HEADER_SZ      = 5,  /* type + version + len(2) */
+    CERT_HEADER_SZ        = 3,  /* always 3 bytes          */
+    REQ_HEADER_SZ         = 2,  /* cert request header sz  */
+    HINT_LEN_SZ           = 2,  /* length of hint size field */
+    HELLO_EXT_TYPE_SZ     = 2,  /* length of a hello extension type */
+    HELLO_EXT_SZ          = 8,  /* total length of the lazy hello extensions */
+    HELLO_EXT_LEN         = 6,  /* length of the lazy hello extensions */
+    HELLO_EXT_SIGALGO_SZ  = 2,  /* length of signature algo extension  */
     HELLO_EXT_SIGALGO_MAX = 32, /* number of items in the signature algo list */
 
     DTLS_HANDSHAKE_HEADER_SZ = 12, /* normal + seq(2) + offset(3) + length(3) */
@@ -1084,13 +1086,13 @@ typedef struct CYASSL_DTLS_CTX {
 #ifdef HAVE_TLS_EXTENSIONS
 
 typedef enum {
-    SERVER_NAME_INDICATION =  0,
-    // MAX_FRAGMENT_LENGTH    =  1,
-    // CLIENT_CERTIFICATE_URL =  2,
-    // TRUSTED_CA_KEYS        =  3,
-    // TRUNCATED_HMAC         =  4,
-    // STATUS_REQUEST         =  5,
-    // SIGNATURE_ALGORITHMS   = 13,
+    SERVER_NAME_INDICATION =  0,/*
+    MAX_FRAGMENT_LENGTH    =  1,
+    CLIENT_CERTIFICATE_URL =  2,
+    TRUSTED_CA_KEYS        =  3,
+    TRUNCATED_HMAC         =  4,
+    STATUS_REQUEST         =  5,
+    SIGNATURE_ALGORITHMS   = 13,*/
 } TLSX_Type;
 
 typedef struct TLSX {
@@ -1101,7 +1103,7 @@ typedef struct TLSX {
 
 void TLSX_free_all(TLSX* list);
 word16 TLSX_getSize(CYASSL* ssl);
-word16 TLSX_write(CYASSL *ssl, byte* output);
+word16 TLSX_write(CYASSL* ssl, byte* output);
 
 /* Server Name Indication */
 #ifdef HAVE_SNI
@@ -1118,7 +1120,7 @@ typedef struct SNI {
     struct SNI *next;
 } SNI;
 
-int TLSX_UseSNI(TLSX** extensions, unsigned char type, void* data, size_t size);
+int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size);
 
 #endif /* HAVE_SNI */
 
