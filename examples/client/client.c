@@ -116,6 +116,7 @@ static void Usage(void)
 #ifdef SHOW_SIZES
     printf("-z          Print structure sizes\n");
 #endif
+    printf("-S <str>    Use Host Name Indication\n");
 }
 
 
@@ -174,7 +175,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     (void)sslResume;
     (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:z:S")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?gdusmNrth:p:v:l:A:c:k:b:zS:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
