@@ -687,7 +687,7 @@ void TLSX_free_all(TLSX* list)
         switch (extension->type) {
             case SERVER_NAME_INDICATION:
                 SNI_FREE_ALL((SNI *) extension->data);
-            break;
+                break;
         }
 
         XFREE(extension, 0, DYNAMIC_TYPE_TLSX);
@@ -709,12 +709,13 @@ static word16 _TLSX_getSize(TLSX* list, byte* cemaphor)
         list = extension->next;
 
         if (IS_OFF(cemaphor, extension->type)) {
-            length += HELLO_EXT_TYPE_SZ + OPAQUE16_LEN; /* type + data length */
+            /* type + data length */
+            length += HELLO_EXT_TYPE_SZ + OPAQUE16_LEN;
 
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
                     length += SNI_GET_SIZE((SNI *) extension->data);
-                break;
+                    break;
             }
 
             TURN_ON(cemaphor, extension->type);
@@ -766,12 +767,14 @@ static word16 _TLSX_write(TLSX* list, byte* output, byte* cemaphor)
             /* extension data should be written internally */
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
-                    offset += SNI_WRITE((SNI *) extension->data, output + offset);
-                break;
+                    offset += SNI_WRITE((SNI *) extension->data,
+                                                              output + offset);
+                    break;
             }
 
             /* writing extension data length */
-            c16toa(offset - length_offset, output + length_offset - OPAQUE16_LEN);
+            c16toa(offset - length_offset,
+                                        output + length_offset - OPAQUE16_LEN);
 
             TURN_ON(cemaphor, extension->type);
         }
@@ -793,7 +796,8 @@ word16 TLSX_write(CYASSL* ssl, byte* output)
             offset += _TLSX_write(ssl->extensions, output + offset, cemaphor);
 
         if (ssl->ctx && ssl->ctx->extensions)
-            offset += _TLSX_write(ssl->ctx->extensions, output + offset, cemaphor);
+            offset += _TLSX_write(ssl->ctx->extensions, output + offset,
+                                                                     cemaphor);
 
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
