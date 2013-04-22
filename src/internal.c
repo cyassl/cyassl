@@ -5659,6 +5659,10 @@ void SetErrorString(int error, char* str)
         XSTRNCPY(str, "Need peer certificate verify Error", max);
         break;
 
+    case UNKNOWN_SNI_HOST_NAME_E:
+        XSTRNCPY(str, "Unrecognized host name Error", max);
+        break;
+
     default :
         XSTRNCPY(str, "unknown error number", max);
     }
