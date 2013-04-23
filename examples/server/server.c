@@ -109,6 +109,7 @@ static void Usage(void)
     printf("-u          Use UDP DTLS,"
            " add -v 2 for DTLSv1 (default), -v 3 for DTLSv1.2\n");
     printf("-N          Use Non-blocking sockets\n");
+    printf("-S <str>    Use Host Name Indication\n");
 }
 
 
@@ -134,6 +135,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     int    useNtruKey = 0;
     int    nonBlocking = 0;
     int    trackMemory = 0;
+    char*  host_name = NULL;
     char*  cipherList = NULL;
     char*  verifyCert = (char*)cliCert;
     char*  ourCert    = (char*)svrCert;
@@ -150,7 +152,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 #endif
     (void)trackMemory;
 
-    while ((ch = mygetopt(argc, argv, "?dbstnNup:v:l:A:c:k:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?dbstnNup:v:l:A:c:k:S:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -216,6 +218,10 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
             case 'N':
                 nonBlocking = 1;
+                break;
+
+            case 'S' :
+                host_name = myoptarg;
                 break;
 
             default:
@@ -363,6 +369,12 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
         if (SSL_CTX_set_cipher_list(ctx, "AES256-SHA256") != SSL_SUCCESS)
             err_sys("server can't set cipher list 3");
     }
+#endif
+
+#ifdef HAVE_SNI
+    if (host_name)
+        if (CyaSSL_CTX_UseSNI(ctx, 0, host_name, XSTRLEN(host_name)))
+            err_sys("UseSNI failed");
 #endif
 
     ssl = SSL_new(ctx);
