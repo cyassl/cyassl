@@ -111,7 +111,7 @@ enum CyaSSL_ErrorCodes {
     RECV_OVERFLOW_E         = -276,            /* RXCB returned more than rqed */
     GEN_COOKIE_E            = -277,            /* Generate Cookie Error */
     NO_PEER_VERIFY          = -278,            /* Need peer cert verify Error */
-    UNKNOWN_SNI_HOST_NAME_E = -279,            /* Need peer cert verify Error */
+    UNKNOWN_SNI_HOST_NAME_E = -279,            /* Unrecognized host name Error */
     /* add strings to SetErrorString !!!!! */
 
     /* begin negotiation parameter errors */
