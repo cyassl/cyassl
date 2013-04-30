@@ -6775,8 +6775,30 @@ int SetCipherList(Suites* s, const char* list)
         }
 
         *inOutIdx = i;
-        if ( (i - begin) < helloSz)
-            *inOutIdx = begin + helloSz;  /* skip extensions */
+        if ( (i - begin) < helloSz) {
+
+#ifdef HAVE_TLS_EXTENSIONS
+            if (IsTLS(ssl)) {
+                int ret = 0;
+                word16 totalExtSz;
+                Suites clSuites; /* just for compatibility right now */
+
+                ato16(&input[i], &totalExtSz);
+                i += LENGTH_SZ;
+                if (totalExtSz > helloSz + begin - i)
+                    return INCOMPLETE_DATA;
+
+                if ((ret = TLSX_Parse(ssl, (byte *) input + i,
+                                                     totalExtSz, 0, &clSuites)))
+                    return ret;
+
+                i += totalExtSz;
+                *inOutIdx = i;
+            }
+            else
+#endif
+                *inOutIdx = begin + helloSz;  /* skip extensions */
+        }
 
         ssl->options.serverState = SERVER_HELLO_COMPLETE;
 
@@ -9216,8 +9238,8 @@ int SetCipherList(Suites* s, const char* list)
                     return INCOMPLETE_DATA;
 
 #ifdef HAVE_TLS_EXTENSIONS
-                if ((ret = TLSX_ParseRequest(ssl, (byte *) input + i,
-                                                       totalExtSz, &clSuites)))
+                if ((ret = TLSX_Parse(ssl, (byte *) input + i,
+                                                     totalExtSz, 1, &clSuites)))
                     return ret;
 
                 i += totalExtSz;

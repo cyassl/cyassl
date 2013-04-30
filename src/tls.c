@@ -504,6 +504,7 @@ static int TLSX_Append(TLSX** list, TLSX_Type type)
 
     extension->type = type;
     extension->data = NULL;
+    extension->resp = 0;
     extension->next = *list;
     *list = extension;
 
@@ -568,19 +569,23 @@ static int TLSX_SNI_Append(SNI** list, SNI_Type type, void* data, word16 size)
     }
 
     sni->type = type;
+    sni->resp = 0;
     sni->next = *list;
     *list = sni;
 
     return 0;
 }
 
-static word16 TLSX_SNI_GetSize(SNI* list)
+static word16 TLSX_SNI_GetSize(SNI* list, byte isRequest)
 {
     SNI* sni;
     word16 length = OPAQUE16_LEN; /* list length */
 
     while ((sni = list)) {
         list = sni->next;
+
+        if (!isRequest && !sni->resp)
+            continue; /* skip! */
 
         length += ENUM_LEN + OPAQUE16_LEN; /* sni type + sni length */
 
@@ -594,7 +599,7 @@ static word16 TLSX_SNI_GetSize(SNI* list)
     return length;
 }
 
-static word16 TLSX_SNI_Write(SNI* list, byte* output)
+static word16 TLSX_SNI_Write(SNI* list, byte* output, byte isRequest)
 {
     SNI* sni;
     word16 length = 0;
@@ -602,6 +607,9 @@ static word16 TLSX_SNI_Write(SNI* list, byte* output)
 
     while ((sni = list)) {
         list = sni->next;
+
+        if (!isRequest && !sni->resp)
+            continue; /* skip! */
 
         output[offset++] = sni->type; /* sni type */
 
@@ -634,7 +642,21 @@ static SNI* TLSX_SNI_Find(SNI *list, SNI_Type type)
     return sni;
 }
 
-static int TLSX_SNI_ParseRequest(CYASSL* ssl, byte* input, word16 length)
+#ifndef NO_CYASSL_CLIENT
+
+static void TLSX_SNI_SetResponse(CYASSL* ssl, SNI_Type type)
+{
+    TLSX *ext = TLSX_Find(ssl->extensions, SERVER_NAME_INDICATION);
+    SNI *sni = TLSX_SNI_Find(ext ? ext->data : NULL, type);
+
+    if (sni)
+        ext->resp = sni->resp = 1;
+}
+
+#endif
+
+static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
+                                                                 byte isRequest)
 {
     word16 size = 0;
     word16 offset = 0;
@@ -644,7 +666,8 @@ static int TLSX_SNI_ParseRequest(CYASSL* ssl, byte* input, word16 length)
         extension = TLSX_Find(ssl->ctx->extensions, SERVER_NAME_INDICATION);
 
     if (!extension || !extension->data)
-        return 0; /* not using SNI */
+        return isRequest ? 0             /* not using SNI at server side */
+                         : BUFFER_ERROR; /* client didn't requested SNI  */
 
     if (OPAQUE16_LEN > length)
         return INCOMPLETE_DATA;
@@ -669,21 +692,37 @@ static int TLSX_SNI_ParseRequest(CYASSL* ssl, byte* input, word16 length)
         if (offset + size > length)
             return INCOMPLETE_DATA;
 
-        if (!(sni = TLSX_SNI_Find((SNI *) extension->data, type)))
-            continue; /* not using this SNI type */
+        if (!(sni = TLSX_SNI_Find((SNI *) extension->data, type))) {
+            if (isRequest)
+                continue; /* not using this SNI type at server side */
+            else
+                return BUFFER_ERROR; /* client didn't requested this SNI type */
+        }
 
         switch(type) {
             case HOST_NAME:
-                if (XSTRNCMP(sni->data.host_name,
-                                        (const char *) input + offset, size)) {
-                    SendAlert(ssl, alert_fatal, unrecognized_name);
+                if (isRequest) {
+                    if (XSTRNCMP(sni->data.host_name,
+                                         (const char *) input + offset, size)) {
+                        SendAlert(ssl, alert_fatal, unrecognized_name);
 
-                    return UNKNOWN_SNI_HOST_NAME_E;
+                        return UNKNOWN_SNI_HOST_NAME_E;
+                    } else {
+                        int ret = TLSX_UseSNI(&ssl->extensions, type,
+                                                                (byte *) "", 0);
+
+                        if (ret) return ret; /* throw error */
+                    }
+                } else {
+                    if (size != 0)
+                        return BUFFER_ERROR; /* response should be empty! */
                 }
-
-                TLSX_UseSNI(&ssl->extensions, type, (byte *) "", 0);
                 break;
         }
+
+        /* setting the SNI type that made to this point as reponse */
+        if (isRequest)
+            TLSX_SNI_SetResponse(ssl, type);
     }
 
     return 0;
@@ -736,17 +775,17 @@ int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size)
     return 0;
 }
 
-#define SNI_FREE_ALL      TLSX_SNI_FreeAll
-#define SNI_GET_SIZE      TLSX_SNI_GetSize
-#define SNI_WRITE         TLSX_SNI_Write
-#define SNI_PARSE_REQUEST TLSX_SNI_ParseRequest
+#define SNI_FREE_ALL TLSX_SNI_FreeAll
+#define SNI_GET_SIZE TLSX_SNI_GetSize
+#define SNI_WRITE    TLSX_SNI_Write
+#define SNI_PARSE    TLSX_SNI_Parse
 
 #else
 
 #define SNI_FREE_ALL(x)
 #define SNI_GET_SIZE(x) 0
 #define SNI_WRITE(x) 0
-#define SNI_PARSE_REQUEST(x) 0
+#define SNI_PARSE(x) 0
 
 #endif /* HAVE_SNI */
 
@@ -783,15 +822,16 @@ void TLSX_FreeAll(TLSX* list)
 #define TURN_ON(cemaphor, light) \
     ((cemaphor)[(light) / 8] |= (0x01 >> ((light) % 8)))
 
-#ifndef NO_CYASSL_CLIENT
-
-static word16 _TLSX_GetRequestSize(TLSX* list, byte* cemaphor)
+static word16 TLSX_GetSize(TLSX* list, byte* cemaphor, byte isRequest)
 {
     TLSX* extension;
     word16 length = 0;
 
     while ((extension = list)) {
         list = extension->next;
+
+        if (!isRequest && !extension->resp)
+            continue; /* skip! */
 
         if (IS_OFF(cemaphor, extension->type)) {
             /* type + data length */
@@ -799,42 +839,19 @@ static word16 _TLSX_GetRequestSize(TLSX* list, byte* cemaphor)
 
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
-                    length += SNI_GET_SIZE((SNI *) extension->data);
+                    length += SNI_GET_SIZE((SNI *) extension->data, isRequest);
                     break;
             }
 
             TURN_ON(cemaphor, extension->type);
         }
-
     }
 
     return length;
 }
 
-word16 TLSX_GetRequestSize(CYASSL* ssl)
-{
-    word16 length = 0;
-
-    if (ssl && IsTLS(ssl)) {
-        byte cemaphor[16] = {0};
-
-        if (ssl->extensions)
-            length += _TLSX_GetRequestSize(ssl->extensions, cemaphor);
-
-        if (ssl->ctx && ssl->ctx->extensions)
-            length += _TLSX_GetRequestSize(ssl->ctx->extensions, cemaphor);
-
-        if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
-            length += ssl->suites->hashSigAlgoSz + HELLO_EXT_LEN;
-    }
-
-    if (length)
-        length += OPAQUE16_LEN; /* for total length storage */
-
-    return length;
-}
-
-static word16 _TLSX_WriteRequest(TLSX* list, byte* output, byte* cemaphor)
+static word16 TLSX_Write(TLSX* list, byte* output, byte* cemaphor,
+                                                                 byte isRequest)
 {
     TLSX* extension;
     word16 offset = 0;
@@ -842,6 +859,9 @@ static word16 _TLSX_WriteRequest(TLSX* list, byte* output, byte* cemaphor)
 
     while ((extension = list)) {
         list = extension->next;
+
+        if (!isRequest && !extension->resp)
+            continue; /* skip! */
 
         if (IS_OFF(cemaphor, extension->type)) {
             /* extension type */
@@ -853,19 +873,44 @@ static word16 _TLSX_WriteRequest(TLSX* list, byte* output, byte* cemaphor)
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
                     offset += SNI_WRITE((SNI *) extension->data,
-                                                              output + offset);
+                                                    output + offset, isRequest);
                     break;
             }
 
             /* writing extension data length */
             c16toa(offset - length_offset,
-                                        output + length_offset - OPAQUE16_LEN);
+                                         output + length_offset - OPAQUE16_LEN);
 
             TURN_ON(cemaphor, extension->type);
         }
     }
 
     return offset;
+}
+
+#ifndef NO_CYASSL_CLIENT
+
+word16 TLSX_GetRequestSize(CYASSL* ssl)
+{
+    word16 length = 0;
+
+    if (ssl && IsTLS(ssl)) {
+        byte cemaphor[16] = {0};
+
+        if (ssl->extensions)
+            length += TLSX_GetSize(ssl->extensions, cemaphor, 1);
+
+        if (ssl->ctx && ssl->ctx->extensions)
+            length += TLSX_GetSize(ssl->ctx->extensions, cemaphor, 1);
+
+        if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
+            length += ssl->suites->hashSigAlgoSz + HELLO_EXT_LEN;
+    }
+
+    if (length)
+        length += OPAQUE16_LEN; /* for total length storage */
+
+    return length;
 }
 
 word16 TLSX_WriteRequest(CYASSL* ssl, byte* output)
@@ -878,11 +923,12 @@ word16 TLSX_WriteRequest(CYASSL* ssl, byte* output)
         offset += OPAQUE16_LEN; /* extensions length */
 
         if (ssl->extensions)
-            offset += _TLSX_WriteRequest(ssl->extensions, output + offset, cemaphor);
+            offset += TLSX_Write(ssl->extensions, output + offset,
+                                                                   cemaphor, 1);
 
         if (ssl->ctx && ssl->ctx->extensions)
-            offset += _TLSX_WriteRequest(ssl->ctx->extensions, output + offset,
-                                                                     cemaphor);
+            offset += TLSX_Write(ssl->ctx->extensions, output + offset,
+                                                                   cemaphor, 1);
 
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
@@ -911,38 +957,48 @@ word16 TLSX_WriteRequest(CYASSL* ssl, byte* output)
     return offset;
 }
 
-int TLSX_ParseResponse(CYASSL* ssl, byte* input, word16 length)
-{
-    /* TODO */
-    if (!ssl || !input || !length)
-        return BAD_FUNC_ARG;
-
-    return 0;
-}
-
 #endif /* NO_CYASSL_CLIENT */
 
 #ifndef NO_CYASSL_SERVER
 
-word16 TLSX_GetResponseSize(CYASSL *ssl)
+word16 TLSX_GetResponseSize(CYASSL* ssl)
 {
-    /* TODO */
-    if (!ssl)
-        return BAD_FUNC_ARG;
+    word16 length = 0;
+    byte cemaphor[16] = {0};
 
-    return 0;
+    if (ssl && IsTLS(ssl))
+        length += TLSX_GetSize(ssl->extensions, cemaphor, 0);
+
+    /* All the response data is set at the ssl object only, so no ctx here. */
+
+    if (length)
+        length += OPAQUE16_LEN; /* for total length storage */
+
+    return length;
 }
 
 word16 TLSX_WriteResponse(CYASSL *ssl, byte* output)
 {
-    /* TODO */
-    if (!ssl || !output)
-        return BAD_FUNC_ARG;
+    word16 offset = 0;
 
-    return 0;
+    if (ssl && IsTLS(ssl) && output) {
+        byte cemaphor[16] = {0};
+
+        offset += OPAQUE16_LEN; /* extensions length */
+
+        offset += TLSX_Write(ssl->extensions, output + offset, cemaphor, 0);
+
+        if (offset > OPAQUE16_LEN)
+            c16toa(offset - OPAQUE16_LEN, output); /* extensions length */
+    }
+
+    return offset;
 }
 
-int TLSX_ParseRequest(CYASSL* ssl, byte* input, word16 length, Suites *suites)
+#endif /* NO_CYASSL_SERVER */
+
+int TLSX_Parse(CYASSL* ssl, byte* input, word16 length, byte isRequest,
+                                                                 Suites *suites)
 {
     int ret = 0;
     word16 offset = 0;
@@ -968,20 +1024,28 @@ int TLSX_ParseRequest(CYASSL* ssl, byte* input, word16 length, Suites *suites)
 
         switch (type) {
             case SERVER_NAME_INDICATION:
-                ret = SNI_PARSE_REQUEST(ssl, input + offset, size);
+                ret = SNI_PARSE(ssl, input + offset, size, isRequest);
                 break;
 
             case HELLO_EXT_SIG_ALGO:
-                /* do not mess with offset inside the switch! */
-                if (IsAtLeastTLSv1_2(ssl)) {
-                    ato16(input + offset, &suites->hashSigAlgoSz);
+                if (isRequest) {
+                    /* do not mess with offset inside the switch! */
+                    if (IsAtLeastTLSv1_2(ssl)) {
+                        ato16(input + offset, &suites->hashSigAlgoSz);
 
-                    if (suites->hashSigAlgoSz > size - OPAQUE16_LEN)
-                        return INCOMPLETE_DATA;
+                        if (suites->hashSigAlgoSz > size - OPAQUE16_LEN)
+                            return INCOMPLETE_DATA;
 
-                    XMEMCPY(suites->hashSigAlgo, input + offset + OPAQUE16_LEN,
-                            min(suites->hashSigAlgoSz, HELLO_EXT_SIGALGO_MAX));
+                        XMEMCPY(suites->hashSigAlgo,
+                                input + offset + OPAQUE16_LEN,
+                                min(suites->hashSigAlgoSz,
+                                                        HELLO_EXT_SIGALGO_MAX));
+                    }
+                } else {
+                    return BUFFER_ERROR;
+                    /* Servers MUST NOT send this extension. */
                 }
+
                 break;
         }
 
@@ -991,8 +1055,6 @@ int TLSX_ParseRequest(CYASSL* ssl, byte* input, word16 length, Suites *suites)
 
     return ret;
 }
-
-#endif /* NO_CYASSL_SERVER */
 
 /* undefining cemaphor macros */
 #undef IS_OFF

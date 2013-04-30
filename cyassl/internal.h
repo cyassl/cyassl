@@ -1096,9 +1096,10 @@ typedef enum {
 } TLSX_Type;
 
 typedef struct TLSX {
-    TLSX_Type type;
-    void *data;
-    struct TLSX *next;
+    TLSX_Type    type; /* Extension Type  */
+    void*        data; /* Extension Data  */
+    byte         resp; /* IsResponse Flag */
+    struct TLSX* next; /* List Behavior   */
 } TLSX;
 
 CYASSL_LOCAL TLSX* TLSX_Find(TLSX* list, TLSX_Type type);
@@ -1107,15 +1108,15 @@ CYASSL_LOCAL void TLSX_FreeAll(TLSX* list);
 #ifndef NO_CYASSL_CLIENT
 CYASSL_LOCAL word16 TLSX_GetRequestSize(CYASSL* ssl);
 CYASSL_LOCAL word16 TLSX_WriteRequest(CYASSL* ssl, byte* output);
-CYASSL_LOCAL int    TLSX_ParseResponse(CYASSL* ssl, byte* input, word16 length);
 #endif
 
 #ifndef NO_CYASSL_SERVER
 CYASSL_LOCAL word16 TLSX_GetResponseSize(CYASSL* ssl);
 CYASSL_LOCAL word16 TLSX_WriteResponse(CYASSL* ssl, byte* output);
-CYASSL_LOCAL int    TLSX_ParseRequest(CYASSL* ssl, byte* input, word16 length,
-                                                                Suites *suites);
 #endif
+
+CYASSL_LOCAL int    TLSX_Parse(CYASSL* ssl, byte* input, word16 length,
+                                                byte isRequest, Suites *suites);
 
 /* Server Name Indication */
 #ifdef HAVE_SNI
@@ -1125,11 +1126,10 @@ typedef enum {
 } SNI_Type;
 
 typedef struct SNI {
-    SNI_Type type;
-    union {
-        char *host_name;
-    } data;
-    struct SNI *next;
+    SNI_Type                   type; /* SNI Type        */
+    union { char* host_name; } data; /* SNI Data        */
+    byte                       resp; /* IsResponse Flag */
+    struct SNI*                next; /* List Behavior   */
 } SNI;
 
 CYASSL_LOCAL int TLSX_UseSNI(TLSX** extensions, byte type, void* data,
