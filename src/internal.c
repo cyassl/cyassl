@@ -456,7 +456,7 @@ void SSL_CtxResourceFree(CYASSL_CTX* ctx)
     CyaSSL_OCSP_Cleanup(&ctx->ocsp);
 #endif
 #ifdef HAVE_TLS_EXTENSIONS
-    TLSX_free_all(ctx->extensions);
+    TLSX_FreeAll(ctx->extensions);
 #endif
 }
 
@@ -1633,7 +1633,7 @@ void SSL_ResourceFree(CYASSL* ssl)
     }
 #endif
 #ifdef HAVE_TLS_EXTENSIONS
-    TLSX_free_all(ssl->extensions);
+    TLSX_FreeAll(ssl->extensions);
 #endif
 }
 
@@ -6555,7 +6555,7 @@ int SetCipherList(Suites* s, const char* list)
                + COMP_LEN + ENUM_LEN;
 
 #ifdef HAVE_TLS_EXTENSIONS
-        length += TLSX_getSize(ssl);
+        length += TLSX_GetRequestSize(ssl);
 #else
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz) {
             length += ssl->suites->hashSigAlgoSz + HELLO_EXT_SZ;
@@ -6634,7 +6634,7 @@ int SetCipherList(Suites* s, const char* list)
             output[idx++] = NO_COMPRESSION;
 
 #ifdef HAVE_TLS_EXTENSIONS
-        idx += TLSX_write(ssl, output + idx);
+        idx += TLSX_WriteRequest(ssl, output + idx);
 #else
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
@@ -7646,6 +7646,10 @@ int SetCipherList(Suites* s, const char* list)
                + SUITE_LEN 
                + ENUM_LEN;
 
+#ifdef HAVE_TLS_EXTENSIONS
+        length += TLSX_GetResponseSize(ssl);
+#endif
+
         /* check for avalaible size */
         if ((ret = CheckAvalaibleSize(ssl, MAX_HELLO_SZ)) != 0)
             return ret;
@@ -7694,11 +7698,17 @@ int SetCipherList(Suites* s, const char* list)
         output[idx++] = ssl->options.cipherSuite0; 
         output[idx++] = ssl->options.cipherSuite;
 
-            /* last, compression */
+            /* then compression */
         if (ssl->options.usingCompression)
             output[idx++] = ZLIB_COMPRESSION;
         else
             output[idx++] = NO_COMPRESSION;
+
+            /* last, extensions */
+#ifdef HAVE_TLS_EXTENSIONS
+        if (IsTLS(ssl))
+            TLSX_WriteResponse(ssl, output + idx);
+#endif
             
         ssl->buffers.outputBuffer.length += sendSz;
         #ifdef CYASSL_DTLS
@@ -9191,7 +9201,12 @@ int SetCipherList(Suites* s, const char* list)
 
         *inOutIdx = i;
         if ( (i - begin) < helloSz) {
+#ifdef HAVE_TLS_EXTENSIONS
+            if (IsTLS(ssl)) {
+                int ret = 0;
+#else
             if (IsAtLeastTLSv1_2(ssl)) {
+#endif
                 /* Process the hello extension. Skip unsupported. */
                 word16 totalExtSz;
 
@@ -9199,6 +9214,14 @@ int SetCipherList(Suites* s, const char* list)
                 i += LENGTH_SZ;
                 if (totalExtSz > helloSz + begin - i)
                     return INCOMPLETE_DATA;
+
+#ifdef HAVE_TLS_EXTENSIONS
+                if ((ret = TLSX_ParseRequest(ssl, (byte *) input + i,
+                                                       totalExtSz, &clSuites)))
+                    return ret;
+
+                i += totalExtSz;
+#else
                 while (totalExtSz) {
                     word16 extId, extSz;
                    
@@ -9224,6 +9247,7 @@ int SetCipherList(Suites* s, const char* list)
 
                     totalExtSz -= LENGTH_SZ + EXT_ID_SZ + extSz;
                 }
+#endif
                 *inOutIdx = i;
             }
             else

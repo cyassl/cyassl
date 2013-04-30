@@ -1101,9 +1101,21 @@ typedef struct TLSX {
     struct TLSX *next;
 } TLSX;
 
-void TLSX_free_all(TLSX* list);
-word16 TLSX_getSize(CYASSL* ssl);
-word16 TLSX_write(CYASSL* ssl, byte* output);
+CYASSL_LOCAL TLSX* TLSX_Find(TLSX* list, TLSX_Type type);
+CYASSL_LOCAL void TLSX_FreeAll(TLSX* list);
+
+#ifndef NO_CYASSL_CLIENT
+CYASSL_LOCAL word16 TLSX_GetRequestSize(CYASSL* ssl);
+CYASSL_LOCAL word16 TLSX_WriteRequest(CYASSL* ssl, byte* output);
+CYASSL_LOCAL int    TLSX_ParseResponse(CYASSL* ssl, byte* input, word16 length);
+#endif
+
+#ifndef NO_CYASSL_SERVER
+CYASSL_LOCAL word16 TLSX_GetResponseSize(CYASSL* ssl);
+CYASSL_LOCAL word16 TLSX_WriteResponse(CYASSL* ssl, byte* output);
+CYASSL_LOCAL int    TLSX_ParseRequest(CYASSL* ssl, byte* input, word16 length,
+                                                                Suites *suites);
+#endif
 
 /* Server Name Indication */
 #ifdef HAVE_SNI
@@ -1120,7 +1132,8 @@ typedef struct SNI {
     struct SNI *next;
 } SNI;
 
-int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size);
+CYASSL_LOCAL int TLSX_UseSNI(TLSX** extensions, byte type, void* data,
+                                                                   word16 size);
 
 #endif /* HAVE_SNI */
 
