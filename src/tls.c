@@ -665,9 +665,13 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
     if (!extension)
         extension = TLSX_Find(ssl->ctx->extensions, SERVER_NAME_INDICATION);
 
-    if (!extension || !extension->data)
-        return isRequest ? 0             /* not using SNI at server side */
-                         : BUFFER_ERROR; /* client didn't requested SNI  */
+    if (!extension || !extension->data) {
+        if (!isRequest) {
+            CYASSL_MSG("Unexpected SNI response from server");
+        }
+
+        return 0; /* not using SNI */
+    }
 
     if (OPAQUE16_LEN > length)
         return INCOMPLETE_DATA;
@@ -693,10 +697,11 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
             return INCOMPLETE_DATA;
 
         if (!(sni = TLSX_SNI_Find((SNI *) extension->data, type))) {
-            if (isRequest)
-                continue; /* not using this SNI type at server side */
-            else
-                return BUFFER_ERROR; /* client didn't requested this SNI type */
+            if (!isRequest) {
+                CYASSL_MSG("Unexpected SNI type response from server");
+            }
+
+            continue; /* not using this SNI type */
         }
 
         switch(type) {
@@ -714,8 +719,9 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
                         if (ret) return ret; /* throw error */
                     }
                 } else {
-                    if (size != 0)
-                        return BUFFER_ERROR; /* response should be empty! */
+                    if (size != 0) {
+                        CYASSL_MSG("SNI response should be empty!");
+                    }
                 }
                 break;
         }
@@ -1042,8 +1048,7 @@ int TLSX_Parse(CYASSL* ssl, byte* input, word16 length, byte isRequest,
                                                         HELLO_EXT_SIGALGO_MAX));
                     }
                 } else {
-                    return BUFFER_ERROR;
-                    /* Servers MUST NOT send this extension. */
+                    CYASSL_MSG("Servers MUST NOT send SIG ALGO extension.");
                 }
 
                 break;
