@@ -642,7 +642,7 @@ static SNI* TLSX_SNI_Find(SNI *list, SNI_Type type)
     return sni;
 }
 
-#ifndef NO_CYASSL_CLIENT
+#ifndef NO_CYASSL_SERVER
 
 static void TLSX_SNI_SetResponse(CYASSL* ssl, SNI_Type type)
 {
@@ -658,8 +658,11 @@ static void TLSX_SNI_SetResponse(CYASSL* ssl, SNI_Type type)
 static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
                                                                  byte isRequest)
 {
+#ifndef NO_CYASSL_SERVER
     word16 size = 0;
     word16 offset = 0;
+#endif
+
     TLSX *extension = TLSX_Find(ssl->extensions, SERVER_NAME_INDICATION);
 
     if (!extension)
@@ -672,6 +675,16 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
 
         return 0; /* not using SNI */
     }
+
+    if (!isRequest) {
+        if (length) {
+            CYASSL_MSG("SNI response should be empty!");
+        }
+
+        return 0; /* nothing to do */
+    }
+
+#ifndef NO_CYASSL_SERVER
 
     if (OPAQUE16_LEN > length)
         return INCOMPLETE_DATA;
@@ -697,39 +710,28 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
             return INCOMPLETE_DATA;
 
         if (!(sni = TLSX_SNI_Find((SNI *) extension->data, type))) {
-            if (!isRequest) {
-                CYASSL_MSG("Unexpected SNI type response from server");
-            }
-
             continue; /* not using this SNI type */
         }
 
         switch(type) {
             case HOST_NAME:
-                if (isRequest) {
-                    if (XSTRNCMP(sni->data.host_name,
+                if (XSTRNCMP(sni->data.host_name,
                                          (const char *) input + offset, size)) {
-                        SendAlert(ssl, alert_fatal, unrecognized_name);
+                    SendAlert(ssl, alert_fatal, unrecognized_name);
 
-                        return UNKNOWN_SNI_HOST_NAME_E;
-                    } else {
-                        int ret = TLSX_UseSNI(&ssl->extensions, type,
-                                                                (byte *) "", 0);
-
-                        if (ret) return ret; /* throw error */
-                    }
+                    return UNKNOWN_SNI_HOST_NAME_E;
                 } else {
-                    if (size != 0) {
-                        CYASSL_MSG("SNI response should be empty!");
-                    }
+                    int r = TLSX_UseSNI(&ssl->extensions, type, (byte *) "", 0);
+
+                    if (r) return r; /* throw error */
                 }
                 break;
         }
 
-        /* setting the SNI type that made to this point as reponse */
-        if (isRequest)
-            TLSX_SNI_SetResponse(ssl, type);
+        TLSX_SNI_SetResponse(ssl, type);
     }
+
+#endif
 
     return 0;
 }
