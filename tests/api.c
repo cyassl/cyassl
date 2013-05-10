@@ -49,7 +49,7 @@ static int test_CyaSSL_read_write(void);
 #endif /* NO_FILESYSTEM */
 #ifdef HAVE_TLS_EXTENSIONS
 #ifdef HAVE_SNI
-static int test_CyaSSL_UseSNI(void);
+static void test_CyaSSL_UseSNI(void);
 #endif /* HAVE_TLS_EXTENSIONS */
 #endif /* HAVE_SNI */
 
@@ -223,21 +223,28 @@ int test_CyaSSL_CTX_new(CYASSL_METHOD *method)
 
 #ifdef HAVE_TLS_EXTENSIONS
 #ifdef HAVE_SNI
-int test_CyaSSL_UseSNI(void)
+void test_CyaSSL_UseSNI(void)
 {
     CYASSL_CTX *ctx = CyaSSL_CTX_new(CyaSSLv23_client_method());
     CYASSL     *ssl = CyaSSL_new(ctx);
 
-    printf(testingFmt, "CyaSSL_CTX_UseSNI()");
-    printf(resultFmt, CyaSSL_CTX_UseSNI(ctx, 0, (void *) "www.yassl.com", XSTRLEN("www.yassl.com")) ? failed : passed);
+    AssertNotNull(ctx);
+    AssertNotNull(ssl);
 
-    printf(testingFmt, "CyaSSL_UseSNI()");
-    printf(resultFmt, CyaSSL_UseSNI(ssl, 0, (void *) "www.cyassl.com", XSTRLEN("www.cyassl.com")) ? failed : passed);
+    /* error cases */
+    AssertIntNE(0, CyaSSL_CTX_UseSNI(NULL, 0, (void *) "ctx", XSTRLEN("ctx")));
+    AssertIntNE(0, CyaSSL_UseSNI(    NULL, 0, (void *) "ssl", XSTRLEN("ssl")));
+    AssertIntNE(0, CyaSSL_CTX_UseSNI(ctx, -1, (void *) "ctx", XSTRLEN("ctx")));
+    AssertIntNE(0, CyaSSL_UseSNI(    ssl, -1, (void *) "ssl", XSTRLEN("ssl")));
+    AssertIntNE(0, CyaSSL_CTX_UseSNI(ctx,  0, (void *) NULL,  XSTRLEN("ctx")));
+    AssertIntNE(0, CyaSSL_UseSNI(    ssl,  0, (void *) NULL,  XSTRLEN("ssl")));
+
+    /* success case */
+    AssertIntEQ(0, CyaSSL_CTX_UseSNI(ctx,  0, (void *) "ctx", XSTRLEN("ctx")));
+    AssertIntEQ(0, CyaSSL_UseSNI(    ssl,  0, (void *) "ssl", XSTRLEN("ssl")));
 
     CyaSSL_free(ssl);
     CyaSSL_CTX_free(ctx);
-
-    return TEST_SUCCESS;
 }
 #endif /* HAVE_SNI */
 #endif /* HAVE_TLS_EXTENSIONS */
