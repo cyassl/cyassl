@@ -742,7 +742,7 @@ int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size)
     SNI*  sni       = NULL;
     int   ret       = 0;
 
-    if (extensions == NULL)
+    if (extensions == NULL || data == NULL)
         return BAD_FUNC_ARG;
 
     if ((ret = TLSX_SNI_Append(&sni, type, data, size)) != 0)
