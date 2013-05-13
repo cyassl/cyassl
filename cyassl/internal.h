@@ -1128,7 +1128,6 @@ typedef enum {
 typedef struct SNI {
     SNI_Type                   type; /* SNI Type        */
     union { char* host_name; } data; /* SNI Data        */
-    byte                       resp; /* IsResponse Flag */
     struct SNI*                next; /* List Behavior   */
 } SNI;
 

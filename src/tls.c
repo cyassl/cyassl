@@ -511,6 +511,18 @@ static int TLSX_Append(TLSX** list, TLSX_Type type)
     return 0;
 }
 
+#ifndef NO_CYASSL_SERVER
+
+static void TLSX_SetResponse(CYASSL* ssl, TLSX_Type type)
+{
+    TLSX *ext = TLSX_Find(ssl->extensions, type);
+
+    if (ext)
+        ext->resp = 1;
+}
+
+#endif
+
 /* SNI - Server Name Indication */
 
 #ifdef HAVE_SNI
@@ -569,23 +581,19 @@ static int TLSX_SNI_Append(SNI** list, SNI_Type type, void* data, word16 size)
     }
 
     sni->type = type;
-    sni->resp = 0;
     sni->next = *list;
     *list = sni;
 
     return 0;
 }
 
-static word16 TLSX_SNI_GetSize(SNI* list, byte isRequest)
+static word16 TLSX_SNI_GetSize(SNI* list)
 {
     SNI* sni;
     word16 length = OPAQUE16_LEN; /* list length */
 
     while ((sni = list)) {
         list = sni->next;
-
-        if (!isRequest && !sni->resp)
-            continue; /* skip! */
 
         length += ENUM_LEN + OPAQUE16_LEN; /* sni type + sni length */
 
@@ -599,7 +607,7 @@ static word16 TLSX_SNI_GetSize(SNI* list, byte isRequest)
     return length;
 }
 
-static word16 TLSX_SNI_Write(SNI* list, byte* output, byte isRequest)
+static word16 TLSX_SNI_Write(SNI* list, byte* output)
 {
     SNI* sni;
     word16 length = 0;
@@ -607,9 +615,6 @@ static word16 TLSX_SNI_Write(SNI* list, byte* output, byte isRequest)
 
     while ((sni = list)) {
         list = sni->next;
-
-        if (!isRequest && !sni->resp)
-            continue; /* skip! */
 
         output[offset++] = sni->type; /* sni type */
 
@@ -641,19 +646,6 @@ static SNI* TLSX_SNI_Find(SNI *list, SNI_Type type)
 
     return sni;
 }
-
-#ifndef NO_CYASSL_SERVER
-
-static void TLSX_SNI_SetResponse(CYASSL* ssl, SNI_Type type)
-{
-    TLSX *ext = TLSX_Find(ssl->extensions, SERVER_NAME_INDICATION);
-    SNI *sni = TLSX_SNI_Find(ext ? ext->data : NULL, type);
-
-    if (sni)
-        ext->resp = sni->resp = 1;
-}
-
-#endif
 
 static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
                                                                  byte isRequest)
@@ -728,7 +720,7 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
                 break;
         }
 
-        TLSX_SNI_SetResponse(ssl, type);
+        TLSX_SetResponse(ssl, SERVER_NAME_INDICATION);
     }
 
 #endif
@@ -847,7 +839,8 @@ static word16 TLSX_GetSize(TLSX* list, byte* cemaphor, byte isRequest)
 
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
-                    length += SNI_GET_SIZE((SNI *) extension->data, isRequest);
+                    if (isRequest)
+                        length += SNI_GET_SIZE((SNI *) extension->data);
                     break;
             }
 
@@ -880,8 +873,9 @@ static word16 TLSX_Write(TLSX* list, byte* output, byte* cemaphor,
             /* extension data should be written internally */
             switch (extension->type) {
                 case SERVER_NAME_INDICATION:
-                    offset += SNI_WRITE((SNI *) extension->data,
-                                                    output + offset, isRequest);
+                    if (isRequest)
+                        offset += SNI_WRITE((SNI *) extension->data,
+                                                               output + offset);
                     break;
             }
 
