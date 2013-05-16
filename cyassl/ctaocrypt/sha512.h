@@ -1,6 +1,6 @@
 /* sha512.h
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -56,7 +56,7 @@ CYASSL_API void Sha512Update(Sha512*, const byte*, word32);
 CYASSL_API void Sha512Final(Sha512*, byte*);
 
 
-#ifdef CYASSL_SHA384
+#if defined(CYASSL_SHA384) || defined(HAVE_AESGCM)
 
 /* in bytes */
 enum {

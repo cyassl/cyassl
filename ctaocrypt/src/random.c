@@ -1,6 +1,6 @@
 /* random.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -48,8 +48,8 @@
     #include <windows.h>
     #include <wincrypt.h>
 #else
-    #ifndef NO_DEV_RANDOM
-        #include <fcntl.h>
+    #if !defined(NO_DEV_RANDOM) && !defined(CYASSL_MDK_ARM) 
+            #include <fcntl.h>
         #ifndef EBSNET
             #include <unistd.h>
         #endif
@@ -89,7 +89,7 @@ static int Hash_df(RNG* rng, byte* out, word32 outSz, byte type, byte* inA, word
     byte ctr;
     int i;
     int len;
-    word32 bits = (outSz * 8); // reverse byte order
+    word32 bits = (outSz * 8); /* reverse byte order */
 
     #ifdef LITTLE_ENDIAN_ORDER
         bits = ByteReverseWord32(bits);
@@ -538,8 +538,9 @@ int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 	#endif /* FREESCALE_K70_RNGA */
 
 #elif defined(STM32F2_RNG)
-
+    #undef RNG
     #include "stm32f2xx_rng.h"
+    #include "stm32f2xx_rcc.h"
     /*
      * Generate a RNG seed using the hardware random number generator 
      * on the STM32F2. Documentation located in STM32F2xx Standard Peripheral 
@@ -569,7 +570,7 @@ int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 #elif defined(NO_DEV_RANDOM)
 
 #error "you need to write an os specific GenerateSeed() here"
-
+int GenerateSeed(OS_Seed* os, byte* output, word32 sz) { return(0) ; }
 
 #else /* !USE_WINDOWS_API && !THREADX && !MICRIUM && !NO_DEV_RANDOM */
 

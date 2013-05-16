@@ -1,4 +1,4 @@
-/* ctaocrypt/test/test.h
+/* ssl-dummy.c
  *
  * Copyright (C) 2006-2013 wolfSSL Inc.
  *
@@ -19,15 +19,30 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
-#pragma once
-
-#ifdef __cplusplus
-    extern "C" {
+#ifdef HAVE_CONFIG_H
+    #include <config.h>
 #endif
 
-void ctaocrypt_test(void* args);
+#include <cyassl/ssl.h>
+#include <cyassl/internal.h>
+#include <cyassl/error.h>
+#include <cyassl/ctaocrypt/coding.h>
 
-#ifdef __cplusplus
-    }  /* extern "C" */
-#endif
+Signer* GetCA(void* vp, byte* hash) 
+{ 
+    Signer*s ;
+    return  s ;
+}
+
+int CyaSSL_dtls(CYASSL* ssl)
+{
+    return ssl->options.dtls;
+}
+
+int CyaSSL_get_using_nonblock(CYASSL* ssl)
+{
+    CYASSL_ENTER("CyaSSL_get_using_nonblock");
+    CYASSL_LEAVE("CyaSSL_get_using_nonblock", ssl->options.usingNonblock);
+    return ssl->options.usingNonblock;
+}
 

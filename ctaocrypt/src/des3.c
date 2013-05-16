@@ -1,6 +1,6 @@
 /* des3.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -30,6 +30,7 @@
 #ifdef NO_INLINE
     #include <cyassl/ctaocrypt/misc.h>
 #else
+    #define MISC_DUMM_FUNC misc_dummy_des3
     #include <ctaocrypt/src/misc.c>
 #endif
 
@@ -49,6 +50,7 @@
      * Peripheral Library document (See note in README).
      */
     #include "stm32f2xx.h"
+		#include "stm32f2xx_cryp.h"
 
     void Des_SetKey(Des* des, const byte* key, const byte* iv, int dir)
     {

@@ -1,6 +1,6 @@
 /* logging.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -110,6 +110,10 @@ static void cyassl_log(const int logLevel, const char *const logMessage)
         #if (NET_SECURE_MGR_CFG_EN == DEF_ENABLED)
             NetSecure_TraceOut((CPU_CHAR *)logMessage);
         #endif
+#elif defined(CYASSL_MDK_ARM)
+            fflush(stdout) ;
+            printf("%s\n", logMessage);
+            fflush(stdout) ;
 #else
             fprintf(stderr, "%s\n", logMessage);
 #endif

@@ -1,6 +1,6 @@
 /* pwdbased.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -29,9 +29,10 @@
 #include <cyassl/ctaocrypt/hmac.h>
 #include <cyassl/ctaocrypt/integer.h>
 #include <cyassl/ctaocrypt/error.h>
-#ifdef CYASSL_SHA512
+#if defined(CYASSL_SHA512) || defined(CYASSL_SHA384)
     #include <cyassl/ctaocrypt/sha512.h>
 #endif
+
 #ifdef NO_INLINE
     #include <cyassl/ctaocrypt/misc.h>
 #else

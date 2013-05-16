@@ -1,6 +1,6 @@
 /* client.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -21,6 +21,13 @@
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
+#endif
+ 
+#if defined(CYASSL_MDK_ARM)
+      #include <stdio.h>
+        #include <string.h>
+        #include <rtl.h>
+        #include "cyassl_MDK_ARM.h"
 #endif
 
 #include <cyassl/ssl.h>
@@ -105,6 +112,9 @@ static void Usage(void)
     printf("-r          Resume session\n");
 }
 
+#ifdef CYASSL_MDK_SHELL
+#define exit(code) return
+#endif
 
 void client_test(void* args)
 {
@@ -239,7 +249,9 @@ void client_test(void* args)
         case 0:
             method = CyaSSLv3_client_method();
             break;
-
+                
+                
+    #ifndef NO_TLS
         case 1:
             method = CyaTLSv1_client_method();
             break;
@@ -247,11 +259,15 @@ void client_test(void* args)
         case 2:
             method = CyaTLSv1_1_client_method();
             break;
-#endif
-
+    #endif /* NO_TLS */
+                
+#endif  /* NO_OLD_TLS */
+                
+#ifndef NO_TLS
         case 3:
             method = CyaTLSv1_2_client_method();
             break;
+#endif
 
 #ifdef CYASSL_DTLS
         case -1:
@@ -346,6 +362,7 @@ void client_test(void* args)
 
         for (i = 0; i < times; i++) {
             tcp_connect(&sockfd, host, port, doDTLS);
+
             ssl = CyaSSL_new(ctx);
             CyaSSL_set_fd(ssl, sockfd);
             if (CyaSSL_connect(ssl) != SSL_SUCCESS)
@@ -365,7 +382,11 @@ void client_test(void* args)
 
         exit(EXIT_SUCCESS);
     }
-
+    
+    #if defined(CYASSL_MDK_ARM)
+    CyaSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, 0);
+    #endif
+    
     ssl = CyaSSL_new(ctx);
     if (ssl == NULL)
         err_sys("unable to get SSL object");
@@ -419,14 +440,14 @@ void client_test(void* args)
     if (CyaSSL_write(ssl, msg, msgSz) != msgSz)
         err_sys("SSL_write failed");
 
-    input = CyaSSL_read(ssl, reply, sizeof(reply));
+    input = CyaSSL_read(ssl, reply, sizeof(reply)-1);
     if (input > 0) {
         reply[input] = 0;
         printf("Server response: %s\n", reply);
 
         if (sendGET) {  /* get html */
             while (1) {
-                input = CyaSSL_read(ssl, reply, sizeof(reply));
+                input = CyaSSL_read(ssl, reply, sizeof(reply)-1);
                 if (input > 0) {
                     reply[input] = 0;
                     printf("%s\n", reply);
@@ -510,7 +531,7 @@ void client_test(void* args)
             #endif
         }
 
-        input = CyaSSL_read(sslResume, reply, sizeof(reply));
+        input = CyaSSL_read(sslResume, reply, sizeof(reply)-1);
         if (input > 0) {
             reply[input] = 0;
             printf("Server resume response: %s\n", reply);
@@ -549,7 +570,7 @@ void client_test(void* args)
         args.argv = argv;
 
         CyaSSL_Init();
-#ifdef DEBUG_CYASSL
+#if defined(DEBUG_CYASSL) && !defined(CYASSL_MDK_SHELL)
         CyaSSL_Debugging_ON();
 #endif
         if (CurrentDir("client") || CurrentDir("build"))
@@ -587,5 +608,4 @@ void client_test(void* args)
     }
 
 #endif
-
 

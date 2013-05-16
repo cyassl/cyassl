@@ -1,6 +1,6 @@
 /* hmac.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -35,7 +35,6 @@
     static void HmacCaviumSetKey(Hmac* hmac, int type, const byte* key,
                                  word32 length);
 #endif
-
 
 static int InitHmac(Hmac* hmac, int type)
 {

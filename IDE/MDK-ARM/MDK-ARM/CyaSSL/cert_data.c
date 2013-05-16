@@ -1,4 +1,4 @@
-/* ctaocrypt/test/test.h
+/* certs_test.c
  *
  * Copyright (C) 2006-2013 wolfSSL Inc.
  *
@@ -19,15 +19,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
-#pragma once
-
-#ifdef __cplusplus
-    extern "C" {
+#ifdef HAVE_CONFIG_H
+    #include <config.h>
 #endif
 
-void ctaocrypt_test(void* args);
-
-#ifdef __cplusplus
-    }  /* extern "C" */
-#endif
+/* Define initial data for cert buffers */
+#include <cyassl/certs_test.h>
 

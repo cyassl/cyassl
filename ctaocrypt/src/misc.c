@@ -1,6 +1,6 @@
 /* misc.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -170,7 +170,5 @@ STATIC INLINE void xorbuf(byte* buf, const byte* mask, word32 count)
         for (i = 0; i < count; i++) buf[i] ^= mask[i];
     }
 }
-
-
 #undef STATIC
 

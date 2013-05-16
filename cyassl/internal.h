@@ -1,6 +1,6 @@
 /* internal.h
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -51,6 +51,11 @@
 #ifdef CYASSL_SHA512
     #include <cyassl/ctaocrypt/sha512.h>
 #endif
+
+#ifdef HAVE_AESGCM
+    #include <cyassl/ctaocrypt/sha512.h>
+#endif
+
 #ifdef CYASSL_RIPEMD
     #include <cyassl/ctaocrypt/ripemd.h>
 #endif
@@ -82,6 +87,8 @@
     /* do nothing */
 #elif defined(FREESCALE_MQX)
     /* do nothing */
+#elif defined(CYASSL_MDK_ARM)
+    #include <rtl.h>
 #else
     #ifndef SINGLE_THREADED
         #define CYASSL_PTHREADS
@@ -204,7 +211,7 @@ void c32to24(word32 in, word24 out);
     #if !defined(NO_PSK)
         #define BUILD_TLS_PSK_WITH_NULL_SHA
         #ifndef NO_SHA256
-        	#define BUILD_TLS_PSK_WITH_NULL_SHA256
+            #define BUILD_TLS_PSK_WITH_NULL_SHA256
         #endif
     #endif
 #endif
@@ -822,6 +829,8 @@ struct CYASSL_CIPHER {
         typedef RTP_MUTEX CyaSSL_Mutex;
     #elif defined(FREESCALE_MQX)
         typedef MUTEX_STRUCT CyaSSL_Mutex;
+    #elif defined(CYASSL_MDK_ARM)
+        typedef OS_MUT CyaSSL_Mutex;
     #else
         #error Need a mutex type in multithreaded mode
     #endif /* USE_WINDOWS_API */
@@ -1144,7 +1153,7 @@ typedef struct Ciphers {
 #ifdef BUILD_DES3
     Des3*   des3;
 #endif
-#ifdef BUILD_AES
+#if defined(BUILD_AES) || defined(BUILD_AESGCM)
     Aes*    aes;
 #endif
 #ifdef HAVE_CAMELLIA

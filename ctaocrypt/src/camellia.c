@@ -27,7 +27,7 @@
 
 /* camellia.c
  *
- * Copyright (C) 2006-2013 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -64,6 +64,7 @@
 #ifdef NO_INLINE
     #include <cyassl/ctaocrypt/misc.h>
 #else
+    #define MISC_DUMM_FUNC misc_dummy_camellia
     #include <ctaocrypt/src/misc.c>
 #endif
 

@@ -1,6 +1,6 @@
 /* md5.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -34,12 +34,13 @@
 
 
 #ifdef STM32F2_CRYPTO
-    /*
+/*
      * STM32F2 hardware MD5 support through the STM32F2 standard peripheral
      * library. Documentation located in STM32F2xx Standard Peripheral Library
      * document (See note in README).
      */
     #include "stm32f2xx.h"
+		#include "stm32f2xx_hash.h"
 
     void InitMd5(Md5* md5)
     {
@@ -49,6 +50,7 @@
          * md5->loLen   = num bytes that have been written to STM32 FIFO
          */
         XMEMSET(md5->buffer, 0, MD5_REG_SIZE);
+			
         md5->buffLen = 0;
         md5->loLen = 0;
 

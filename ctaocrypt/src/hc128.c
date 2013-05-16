@@ -1,6 +1,6 @@
 /* hc128.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -28,6 +28,7 @@
 #include <cyassl/ctaocrypt/hc128.h>
 #ifdef NO_INLINE
     #include <cyassl/ctaocrypt/hc128.h>
+		#include <cyassl/ctaocrypt/misc.h>
 #else
     #include <ctaocrypt/src/misc.c>
 #endif

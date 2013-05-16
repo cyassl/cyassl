@@ -1,6 +1,6 @@
 /* echoserver.c
  *
- * Copyright (C) 2006-2012 Sawtooth Consulting Ltd.
+ * Copyright (C) 2006-2013 wolfSSL Inc.
  *
  * This file is part of CyaSSL.
  *
@@ -21,6 +21,13 @@
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
+#endif
+
+#if defined(CYASSL_MDK_ARM)
+    #include <stdio.h>
+    #include <string.h>
+    #include <rtl.h>
+    #include "cyassl_MDK_ARM.h"
 #endif
 
 #include <cyassl/ssl.h>
@@ -163,7 +170,8 @@ THREAD_RETURN CYASSL_THREAD echoserver_test(void* args)
 
     while (!shutDown) {
         CYASSL* ssl = 0;
-        char    command[1024];
+        #define COMMAND_SIZE 256
+        char    command[COMMAND_SIZE+1];
         int     echoSz = 0;
         int     clientfd;
         int     firstRead = 1;
@@ -197,7 +205,7 @@ THREAD_RETURN CYASSL_THREAD echoserver_test(void* args)
         showPeer(ssl);
 #endif
 
-        while ( (echoSz = CyaSSL_read(ssl, command, sizeof(command))) > 0) {
+        while ( (echoSz = CyaSSL_read(ssl, command, sizeof(command)-1)) > 0) {
 
             if (firstRead == 1) {
                 firstRead = 0;  /* browser may send 1 byte 'G' to start */
@@ -299,7 +307,7 @@ THREAD_RETURN CYASSL_THREAD echoserver_test(void* args)
         args.argv = argv;
 
         CyaSSL_Init();
-#ifdef DEBUG_CYASSL
+#if defined(DEBUG_CYASSL) && !defined(CYASSL_MDK_SHELL)
         CyaSSL_Debugging_ON();
 #endif
         if (CurrentDir("echoserver") || CurrentDir("build"))
@@ -313,10 +321,9 @@ THREAD_RETURN CYASSL_THREAD echoserver_test(void* args)
         return args.return_code;
     }
 
-    int myoptind = 0;
-    char* myoptarg = NULL;
-
+        
 #endif /* NO_MAIN_DRIVER */
+
 
 
 
