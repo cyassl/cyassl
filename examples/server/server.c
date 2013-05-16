@@ -135,13 +135,16 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     int    useNtruKey = 0;
     int    nonBlocking = 0;
     int    trackMemory = 0;
-    char*  host_name = NULL;
     char*  cipherList = NULL;
     char*  verifyCert = (char*)cliCert;
     char*  ourCert    = (char*)svrCert;
     char*  ourKey     = (char*)svrKey;
     int    argc = ((func_args*)args)->argc;
     char** argv = ((func_args*)args)->argv;
+
+#ifdef HAVE_SNI
+    char*  host_name = NULL;
+#endif
 
     ((func_args*)args)->return_code = -1; /* error state */
 
@@ -221,7 +224,9 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
                 break;
 
             case 'S' :
-                host_name = myoptarg;
+                #ifdef HAVE_SNI
+                    host_name = myoptarg;
+                #endif
                 break;
 
             default:

@@ -158,7 +158,9 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     char*  ourCert    = (char*)cliCert;
     char*  ourKey     = (char*)cliKey;
 
+#ifdef HAVE_SNI
     char*  host_name = 0;
+#endif
 
     int     argc = ((func_args*)args)->argc;
     char**  argv = ((func_args*)args)->argv;
@@ -267,7 +269,9 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
                 break;
 
             case 'S' :
-                host_name = myoptarg;
+                #ifdef HAVE_SNI
+                    host_name = myoptarg;
+                #endif
                 break;
 
             default:
