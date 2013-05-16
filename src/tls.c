@@ -550,7 +550,8 @@ static void TLSX_SNI_FreeAll(SNI* list)
     }
 }
 
-static int TLSX_SNI_Append(SNI** list, SNI_Type type, void* data, word16 size)
+static int TLSX_SNI_Append(SNI** list, SNI_Type type, const void* data,
+                                                                    word16 size)
 {
     SNI* sni;
 
@@ -565,7 +566,7 @@ static int TLSX_SNI_Append(SNI** list, SNI_Type type, void* data, word16 size)
             sni->data.host_name = XMALLOC(size + 1, 0, DYNAMIC_TYPE_TLSX);
 
             if (sni->data.host_name) {
-                XSTRNCPY(sni->data.host_name, (char*) data, size);
+                XSTRNCPY(sni->data.host_name, (const char*) data, size);
                 sni->data.host_name[size] = 0;
             } else {
                 XFREE(sni, 0, DYNAMIC_TYPE_TLSX);
@@ -728,7 +729,7 @@ static int TLSX_SNI_Parse(CYASSL* ssl, byte* input, word16 length,
     return 0;
 }
 
-int TLSX_UseSNI(TLSX** extensions, byte type, void* data, word16 size)
+int TLSX_UseSNI(TLSX** extensions, byte type, const void* data, word16 size)
 {
     TLSX* extension = NULL;
     SNI*  sni       = NULL;

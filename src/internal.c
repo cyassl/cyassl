@@ -9219,8 +9219,6 @@ int SetCipherList(Suites* s, const char* list)
         else
             i += b;  /* ignore, since we're not on */
 
-        ssl->options.clientState = CLIENT_HELLO_COMPLETE;
-
         *inOutIdx = i;
         if ( (i - begin) < helloSz) {
 #ifdef HAVE_TLS_EXTENSIONS
@@ -9275,6 +9273,8 @@ int SetCipherList(Suites* s, const char* list)
             else
                 *inOutIdx = begin + helloSz;  /* skip extensions */
         }
+
+        ssl->options.clientState = CLIENT_HELLO_COMPLETE;
         
         ssl->options.haveSessionId = 1;
         /* ProcessOld uses same resume code */

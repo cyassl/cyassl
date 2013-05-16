@@ -1131,7 +1131,7 @@ typedef struct SNI {
     struct SNI*                next; /* List Behavior   */
 } SNI;
 
-CYASSL_LOCAL int TLSX_UseSNI(TLSX** extensions, byte type, void* data,
+CYASSL_LOCAL int TLSX_UseSNI(TLSX** extensions, byte type, const void* data,
                                                                    word16 size);
 
 #endif /* HAVE_SNI */
