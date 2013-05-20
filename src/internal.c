@@ -6635,6 +6635,8 @@ int SetCipherList(Suites* s, const char* list)
 
 #ifdef HAVE_TLS_EXTENSIONS
         idx += TLSX_WriteRequest(ssl, output + idx);
+
+        (void)idx; /* suppress analyzer warning, keep idx current */
 #else
         if (IsAtLeastTLSv1_2(ssl) && ssl->suites->hashSigAlgoSz)
         {
