@@ -159,7 +159,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
     char*  ourKey     = (char*)cliKey;
 
 #ifdef HAVE_SNI
-    char*  host_name = 0;
+    char*  sniHostName = NULL;
 #endif
 
     int     argc = ((func_args*)args)->argc;
@@ -270,7 +270,7 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 
             case 'S' :
                 #ifdef HAVE_SNI
-                    host_name = myoptarg;
+                    sniHostName = myoptarg;
                 #endif
                 break;
 
@@ -418,8 +418,8 @@ THREAD_RETURN CYASSL_THREAD client_test(void* args)
 #endif
 
 #ifdef HAVE_SNI
-    if (host_name)
-        if (CyaSSL_CTX_UseSNI(ctx, 0, host_name, XSTRLEN(host_name)))
+    if (sniHostName)
+        if (CyaSSL_CTX_UseSNI(ctx, 0, sniHostName, XSTRLEN(sniHostName)))
             err_sys("UseSNI failed");
 #endif
 
