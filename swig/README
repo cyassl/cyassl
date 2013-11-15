@@ -15,6 +15,9 @@ Please send questions to support@yassl.com
     make
     sudo make install
 
+  NOTE: if you want to use pbkdf pkcs #12 algorithm you should build CyaSSL with --enable-pwdbased:
+  ./configure --disable-shared --enable-pwdbased CFLAGS=-fpic
+
 
 2) start the example echoserver from the examples/echoserver directory
     ./echoserver
@@ -27,7 +30,7 @@ Please send questions to support@yassl.com
        string, then read the result and output it
 
 
-    Windows only 
+    Windows only
 
 1) Make sure the install path to cyassl doesn't have any spaces anywhere in the
    directory path because swig doesn't like that
@@ -40,5 +43,4 @@ Please send questions to support@yassl.com
 6) Build python_cyassl in Release mode only, Debug build fails to find a debug
     python library that isn't included by default
 7) The outputs _cyassl.pyd and cyassl.py are the cyassl import library
-8) Can now run python runme.py from the swig directory 
-
+8) Can now run python runme.py from the swig directory
