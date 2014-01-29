@@ -2692,8 +2692,8 @@ int rsa_test(void)
         fclose(pemFile);
 
         InitRsaKey(&derIn, 0);
-        idx = 0;
-        ret = RsaPrivateKeyDecode(der, &idx, &derIn, derSz);
+        idx1 = 0;
+        ret = RsaPrivateKeyDecode(der, &idx1, &derIn, derSz);
         if (ret != 0)
             return -306;
 
