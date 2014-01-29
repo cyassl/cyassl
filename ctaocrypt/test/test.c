@@ -2644,7 +2644,7 @@ int rsa_test(void)
 
     FreeDecodedCert(&cert);
 #else
-    (void)bytes;
+    (void)bytes1;
 #endif
 
 
