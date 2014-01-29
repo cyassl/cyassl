@@ -2549,10 +2549,10 @@ byte GetEntropy(ENTROPY_CMD cmd, byte* out)
 int rsa_test(void)
 {
     byte*   tmp;
-    size_t bytes;
+    size_t bytes1;
     RsaKey key;
     RNG    rng;
-    word32 idx = 0;
+    word32 idx1 = 0;
     int    ret;
     byte   in[] = "Everyone gets Friday off.";
     word32 inLen = (word32)strlen((char*)in);
@@ -2582,7 +2582,7 @@ int rsa_test(void)
         err_sys("can't open ./certs/client-key.der, "
                 "Please run from CyaSSL home dir", -40);
 
-    bytes = fread(tmp, 1, FOURK_BUF, file);
+    bytes1 = fread(tmp, 1, FOURK_BUF, file);
     fclose(file);
 #endif /* USE_CERT_BUFFERS */
  
@@ -2590,7 +2590,7 @@ int rsa_test(void)
     RsaInitCavium(&key, CAVIUM_DEV_ID);
 #endif 
     InitRsaKey(&key, 0);  
-    ret = RsaPrivateKeyDecode(tmp, &idx, &key, (word32)bytes);
+    ret = RsaPrivateKeyDecode(tmp, &idx1, &key, (word32)bytes1);
     if (ret != 0) return -41;
 
     ret = InitRng(&rng);
@@ -2619,16 +2619,16 @@ int rsa_test(void)
 
 #ifdef USE_CERT_BUFFERS_1024
     XMEMCPY(tmp, client_cert_der_1024, sizeof_client_cert_der_1024);
-    bytes = sizeof_client_cert_der_1024;
+    bytes1 = sizeof_client_cert_der_1024;
 #elif defined(USE_CERT_BUFFERS_2048)
     XMEMCPY(tmp, client_cert_der_2048, sizeof_client_cert_der_2048);
-    bytes = sizeof_client_cert_der_2048;
+    bytes1 = sizeof_client_cert_der_2048;
 #else
     file2 = fopen(clientCert, "rb");
     if (!file2)
         return -49;
 
-    bytes = fread(tmp, 1, FOURK_BUF, file2);
+    bytes1 = fread(tmp, 1, FOURK_BUF, file2);
     fclose(file2);
 #endif
 
@@ -2637,7 +2637,7 @@ int rsa_test(void)
 #endif		
 
 #ifdef CYASSL_TEST_CERT
-    InitDecodedCert(&cert, tmp, (word32)bytes, 0);
+    InitDecodedCert(&cert, tmp, (word32)bytes1, 0);
 
     ret = ParseCert(&cert, CERT_TYPE, NO_VERIFY, 0);
     if (ret != 0) return -491;
@@ -2865,9 +2865,9 @@ int rsa_test(void)
         FILE*       pemFile;
         int         certSz;
         int         pemSz;
-        size_t      bytes3;
-        word32      idx3 = 0;
-			  FILE* file3 ;
+        size_t      bytes4;
+        word32      idx4 = 0;
+			  FILE* file4 ;
 #ifdef CYASSL_TEST_CERT
         DecodedCert decode;
 #endif
@@ -2879,16 +2879,16 @@ int rsa_test(void)
         if (pem == NULL)
             return -5312;
 
-        file3 = fopen(eccCaKeyFile, "rb");
+        file4 = fopen(eccCaKeyFile, "rb");
 
-        if (!file3)
+        if (!file4)
             return -5412;
 
-        bytes3 = fread(tmp, 1, FOURK_BUF, file3);
-        fclose(file3);
+        bytes4 = fread(tmp, 1, FOURK_BUF, file4);
+        fclose(file4);
   
         ecc_init(&caKey);  
-        ret = EccPrivateKeyDecode(tmp, &idx3, &caKey, (word32)bytes3);
+        ret = EccPrivateKeyDecode(tmp, &idx4, &caKey, (word32)bytes4);
         if (ret != 0) return -5413;
 
         InitCert(&myCert);
@@ -2955,8 +2955,8 @@ int rsa_test(void)
         FILE*       ntruPrivFile;
         int         certSz;
         int         pemSz;
-        size_t      bytes;
-        word32      idx = 0;
+        size_t      bytes5;
+        word32      idx5 = 0;
 #ifdef CYASSL_TEST_CERT
         DecodedCert decode;
 #endif
@@ -3001,7 +3001,7 @@ int rsa_test(void)
         fclose(caFile);
   
         InitRsaKey(&caKey, 0);  
-        ret = RsaPrivateKeyDecode(tmp, &idx, &caKey, (word32)bytes);
+        ret = RsaPrivateKeyDecode(tmp, &idx5, &caKey, (word32)bytes5);
         if (ret != 0) return -454;
 
         InitCert(&myCert);
