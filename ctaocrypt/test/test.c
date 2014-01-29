@@ -2571,10 +2571,10 @@ int rsa_test(void)
 
 #ifdef USE_CERT_BUFFERS_1024
     XMEMCPY(tmp, client_key_der_1024, sizeof_client_key_der_1024);
-    bytes = sizeof_client_key_der_1024;
+    bytes1 = sizeof_client_key_der_1024;
 #elif defined(USE_CERT_BUFFERS_2048)
     XMEMCPY(tmp, client_key_der_2048, sizeof_client_key_der_2048);
-    bytes = sizeof_client_key_der_2048;
+    bytes1 = sizeof_client_key_der_2048;
 #else
     file = fopen(clientKey, "rb");
 
@@ -2997,7 +2997,7 @@ int rsa_test(void)
         if (!caFile)
             return -453;
 
-        bytes = fread(tmp, 1, FOURK_BUF, caFile);
+        bytes5 = fread(tmp, 1, FOURK_BUF, caFile);
         fclose(caFile);
   
         InitRsaKey(&caKey, 0);  
