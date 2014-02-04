@@ -1323,10 +1323,10 @@ void InitDecodedCert(DecodedCert* cert, byte* source, word32 inSz, void* heap)
     cert->extAuthKeyIdSz = 0;
     cert->extSubjKeyIdSrc = NULL;
     cert->extSubjKeyIdSz = 0;
-    #ifdef HAVE_ECC
-        cert->pkCurveOID = 0;
-    #endif /* HAVE_ECC */
 #endif /* OPENSSL_EXTRA */
+#ifdef HAVE_ECC
+    cert->pkCurveOID = 0;
+#endif /* HAVE_ECC */
 #ifdef CYASSL_SEP
     cert->deviceTypeSz = 0;
     cert->deviceType = NULL;
@@ -1522,7 +1522,6 @@ static int GetKey(DecodedCert* cert)
     #ifdef HAVE_ECC
         case ECDSAk:
         {
-            word32 oid = 0;
             int    oidSz = 0;
             byte   b = cert->source[cert->srcIdx++];
         
@@ -1533,12 +1532,10 @@ static int GetKey(DecodedCert* cert)
                 return ASN_PARSE_E;
 
             while(oidSz--)
-                oid += cert->source[cert->srcIdx++];
-            if (CheckCurve(oid) < 0)
+                cert->pkCurveOID += cert->source[cert->srcIdx++];
+
+            if (CheckCurve(cert->pkCurveOID) < 0)
                 return ECC_CURVE_OID_E;
-            #ifdef OPENSSL_EXTRA
-                cert->pkCurveOID = oid;
-            #endif /* OPENSSL_EXTRA */
 
             /* key header */
             b = cert->source[cert->srcIdx++];
@@ -3081,6 +3078,7 @@ static void DecodeAuthInfo(byte* input, int sz, DecodedCert* cert)
 {
     word32 idx = 0;
     int length = 0;
+    byte b;
     word32 oid;
 
     CYASSL_ENTER("DecodeAuthInfo");
@@ -3088,34 +3086,25 @@ static void DecodeAuthInfo(byte* input, int sz, DecodedCert* cert)
     /* Unwrap the list of AIAs */
     if (GetSequence(input, &idx, &length, sz) < 0) return;
 
-    /* Unwrap a single AIA */
-    if (GetSequence(input, &idx, &length, sz) < 0) return;
+    while (idx < (word32)sz) {
+        /* Unwrap a single AIA */
+        if (GetSequence(input, &idx, &length, sz) < 0) return;
 
-    oid = 0;
-    if (GetObjectId(input, &idx, &oid, sz) < 0) return;
+        oid = 0;
+        if (GetObjectId(input, &idx, &oid, sz) < 0) return;
 
-    /* Only supporting URIs right now. */
-    if (input[idx] == (ASN_CONTEXT_SPECIFIC | GENERALNAME_URI))
-    {
-        idx++;
+        /* Only supporting URIs right now. */
+        b = input[idx++];
         if (GetLength(input, &idx, &length, sz) < 0) return;
 
-        cert->extAuthInfoSz = length;
-        cert->extAuthInfo = input + idx;
+        if (b == (ASN_CONTEXT_SPECIFIC | GENERALNAME_URI) &&
+            oid == AIA_OCSP_OID)
+        {
+            cert->extAuthInfoSz = length;
+            cert->extAuthInfo = input + idx;
+            break;
+        }
         idx += length;
-    }
-    else
-    {
-        /* Skip anything else. */
-        idx++;
-        if (GetLength(input, &idx, &length, sz) < 0) return;
-        idx += length;
-    }
-
-    if (idx < (word32)sz)
-    {
-        CYASSL_MSG("\tThere are more Authority Information Access records, "
-                   "but we only use first one.");
     }
 
     return;
@@ -3893,6 +3882,10 @@ void InitCert(Cert* cert)
     cert->subject.unit[0] = '\0';
     cert->subject.commonName[0] = '\0';
     cert->subject.email[0] = '\0';
+
+#ifdef CYASSL_CERT_REQ
+    cert->challengePw[0] ='\0';
+#endif
 }
 
 
@@ -4020,6 +4013,7 @@ static int SetRsaPublicKey(byte* output, RsaKey* key)
     int  idx;
     int  rawLen;
     int  leadingBit;
+    int  err;
 
     /* n */
     leadingBit = mp_leading_bit(&key->n);
@@ -4028,7 +4022,9 @@ static int SetRsaPublicKey(byte* output, RsaKey* key)
     nSz  = SetLength(rawLen, n + 1) + 1;  /* int tag */
 
     if ( (nSz + rawLen) < (int)sizeof(n)) {
-        int err = mp_to_unsigned_bin(&key->n, n + nSz + leadingBit);
+        if (leadingBit)
+            n[nSz] = 0;
+        err = mp_to_unsigned_bin(&key->n, n + nSz + leadingBit);
         if (err == MP_OKAY)
             nSz += rawLen;
         else
@@ -4044,7 +4040,9 @@ static int SetRsaPublicKey(byte* output, RsaKey* key)
     eSz  = SetLength(rawLen, e + 1) + 1;  /* int tag */
 
     if ( (eSz + rawLen) < (int)sizeof(e)) {
-        int err = mp_to_unsigned_bin(&key->e, e + eSz + leadingBit);
+        if (leadingBit)
+            e[eSz] = 0;
+        err = mp_to_unsigned_bin(&key->e, e + eSz + leadingBit);
         if (err == MP_OKAY)
             eSz += rawLen;
         else
@@ -5264,7 +5262,8 @@ int StoreECC_DSA_Sig(byte* out, word32* outLen, mp_int* r, mp_int* s)
     int sLen = mp_unsigned_bin_size(s);
     int err;
 
-    if (*outLen < (rLen + sLen + headerSz + 2))  /* SEQ_TAG + LEN(ENUM) */
+    if (*outLen < (rLen + rLeadingZero + sLen + sLeadingZero +
+                   headerSz + 2))  /* SEQ_TAG + LEN(ENUM) */
         return BAD_FUNC_ARG;
 
     idx = SetSequence(rLen+rLeadingZero+sLen+sLeadingZero+headerSz, out);

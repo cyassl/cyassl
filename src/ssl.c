@@ -622,6 +622,56 @@ int CyaSSL_CTX_UseTruncatedHMAC(CYASSL_CTX* ctx)
 #endif /* NO_CYASSL_CLIENT */
 #endif /* HAVE_TRUNCATED_HMAC */
 
+/* Elliptic Curves */
+#ifdef HAVE_SUPPORTED_CURVES
+#ifndef NO_CYASSL_CLIENT
+
+int CyaSSL_UseSupportedCurve(CYASSL* ssl, word16 name)
+{
+    if (ssl == NULL)
+        return BAD_FUNC_ARG;
+
+    switch (name) {
+        case CYASSL_ECC_SECP160R1:
+        case CYASSL_ECC_SECP192R1:
+        case CYASSL_ECC_SECP224R1:
+        case CYASSL_ECC_SECP256R1:
+        case CYASSL_ECC_SECP384R1:
+        case CYASSL_ECC_SECP521R1:
+            break;
+
+        default:
+            return BAD_FUNC_ARG;
+    }
+
+    return TLSX_UseSupportedCurve(&ssl->extensions, name);
+}
+
+int CyaSSL_CTX_UseSupportedCurve(CYASSL_CTX* ctx, word16 name)
+{
+    if (ctx == NULL)
+        return BAD_FUNC_ARG;
+
+    switch (name) {
+        case CYASSL_ECC_SECP160R1:
+        case CYASSL_ECC_SECP192R1:
+        case CYASSL_ECC_SECP224R1:
+        case CYASSL_ECC_SECP256R1:
+        case CYASSL_ECC_SECP384R1:
+        case CYASSL_ECC_SECP521R1:
+            break;
+
+        default:
+            return BAD_FUNC_ARG;
+    }
+
+    return TLSX_UseSupportedCurve(&ctx->extensions, name);
+}
+
+#endif /* NO_CYASSL_CLIENT */
+#endif /* HAVE_SUPPORTED_CURVES */
+
+
 #ifndef CYASSL_LEANPSK
 int CyaSSL_send(CYASSL* ssl, const void* data, int sz, int flags)
 {
@@ -2112,6 +2162,13 @@ int CyaSSL_Init(void)
                     CYASSL_MSG("Not ECDSA cert signature");
                     break;
             }
+
+#ifdef HAVE_ECC
+            if (ctx)
+                ctx->pkCurveOID = cert.pkCurveOID;
+            if (ssl)
+                ssl->pkCurveOID = cert.pkCurveOID;
+#endif
 
             FreeDecodedCert(&cert);
         }
@@ -11339,4 +11396,10 @@ void* CyaSSL_GetRsaDecCtx(CYASSL* ssl)
 
 #endif /* HAVE_PK_CALLBACKS */
 #endif /* NO_CERTS */
+
+
+#ifdef CYASSL_HAVE_WOLFSCEP
+    /* Used by autoconf to see if wolfSCEP is available */
+    void CyaSSL_wolfSCEP(void) {}
+#endif
 

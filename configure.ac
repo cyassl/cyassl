@@ -6,7 +6,7 @@
 #
 #
 
-AC_INIT([cyassl],[2.8.5],[https://github.com/cyassl/cyassl/issues],[cyassl],[http://www.yassl.com])
+AC_INIT([cyassl],[2.8.6],[https://github.com/cyassl/cyassl/issues],[cyassl],[http://www.yassl.com])
 
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -1105,6 +1105,20 @@ fi
 AM_CONDITIONAL([BUILD_OCSP], [test "x$ENABLED_OCSP" = "xyes"])
 
 
+if test "$ENABLED_OCSP" = "yes"
+then
+    # check openssl command tool for testing ocsp
+    AC_CHECK_PROG([HAVE_OPENSSL_CMD],[openssl],[yes],[no])
+
+    if test "$HAVE_OPENSSL_CMD" = "yes"
+    then
+        AM_CFLAGS="$AM_CFLAGS -DHAVE_OPENSSL_CMD"
+    else
+        AC_MSG_WARN([openssl command line tool not available for testing ocsp])
+    fi
+fi
+
+
 # CRL 
 AC_ARG_ENABLE([crl],
     [  --enable-crl            Enable CRL (default: disabled)],
@@ -1212,6 +1226,18 @@ then
     AM_CFLAGS="$AM_CFLAGS -DHAVE_TLS_EXTENSIONS -DHAVE_RENEGOTIATION_INDICATION"
 fi
 
+# Supported Elliptic Curves Extensions
+AC_ARG_ENABLE([supportedcurves],
+    [  --enable-supportedcurves Enable Supported Elliptic Curves (default: disabled)],
+    [ ENABLED_SUPPORTED_CURVES=$enableval ],
+    [ ENABLED_SUPPORTED_CURVES=no ]
+    )
+
+if test "x$ENABLED_SUPPORTED_CURVES" = "xyes"
+then
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_TLS_EXTENSIONS -DHAVE_SUPPORTED_CURVES"
+fi
+
 # TLS Extensions
 AC_ARG_ENABLE([tlsx],
     [  --enable-tlsx           Enable all TLS Extensions (default: disabled)],
@@ -1225,7 +1251,8 @@ then
 	ENABLED_MAX_FRAGMENT=yes
 	ENABLED_TRUNCATED_HMAC=yes
 	ENABLED_RENEGOTIATION_INDICATION=yes
-    AM_CFLAGS="$AM_CFLAGS -DHAVE_TLS_EXTENSIONS -DHAVE_SNI -DHAVE_MAX_FRAGMENT -DHAVE_TRUNCATED_HMAC -DHAVE_RENEGOTIATION_INDICATION"
+	ENABLED_SUPPORTED_CURVES=yes
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_TLS_EXTENSIONS -DHAVE_SNI -DHAVE_MAX_FRAGMENT -DHAVE_TRUNCATED_HMAC -DHAVE_RENEGOTIATION_INDICATION -DHAVE_SUPPORTED_CURVES"
 fi
 
 # PKCS7
@@ -1241,6 +1268,41 @@ then
 fi
 
 AM_CONDITIONAL([BUILD_PKCS7], [test "x$ENABLED_PKCS7" = "xyes"])
+
+
+# Simple Certificate Enrollment Protocol (SCEP)
+AC_ARG_ENABLE([scep],
+    [  --enable-scep           Enable wolfSCEP (default: disabled)],
+    [ ENABLED_WOLFSCEP=$enableval ],
+    [ ENABLED_WOLFSCEP=no ]
+    )
+if test "$ENABLED_WOLFSCEP" = "yes"
+then
+    # Enable prereqs if not already enabled
+    if test "x$ENABLED_KEYGEN" = "xno"
+    then
+        ENABLED_KEYGEN="yes"
+        AM_CFLAGS="$AM_CFLAGS -DCYASSL_KEY_GEN"
+    fi
+    if test "x$ENABLED_CERTGEN" = "xno"
+    then
+        ENABLED_CERTGEN="yes"
+        AM_CFLAGS="$AM_CFLAGS -DCYASSL_CERT_GEN"
+    fi
+    if test "x$ENABLED_CERTREQ" = "xno"
+    then
+        ENABLED_CERTREQ="yes"
+        AM_CFLAGS="$AM_CFLAGS -DCYASSL_CERT_REQ"
+    fi
+    if test "x$ENABLED_PKCS7" = "xno"
+    then
+        ENABLED_PKCS7="yes"
+        AM_CFLAGS="$AM_CFLAGS -DHAVE_PKCS7"
+        AM_CONDITIONAL([BUILD_PKCS7], [test "x$ENABLED_PKCS7" = "xyes"])
+    fi
+    AM_CFLAGS="$AM_CFLAGS -DCYASSL_HAVE_WOLFSCEP"
+fi
+
 
 #valgrind
 AC_ARG_ENABLE([valgrind],
@@ -1627,8 +1689,10 @@ echo "   * SNI:                       $ENABLED_SNI"
 echo "   * Maximum Fragment Length:   $ENABLED_MAX_FRAGMENT"
 echo "   * Truncated HMAC:            $ENABLED_TRUNCATED_HMAC"
 echo "   * Renegotiation Indication:  $ENABLED_RENEGOTIATION_INDICATION"
+echo "   * Supported Elliptic Curves: $ENABLED_SUPPORTED_CURVES"
 echo "   * All TLS Extensions:        $ENABLED_TLSX"
 echo "   * PKCS#7                     $ENABLED_PKCS7"
+echo "   * wolfSCEP                   $ENABLED_WOLFSCEP"
 echo "   * valgrind unit tests:       $ENABLED_VALGRIND"
 echo "   * LIBZ:                      $ENABLED_LIBZ"
 echo "   * Examples:                  $ENABLED_EXAMPLES"
