@@ -97,7 +97,7 @@
 #endif
 
 #ifdef HAVE_NTRU
-    #include "crypto_ntru.h"
+    #include "ntru_crypto.h"
 #endif
 #ifdef HAVE_CAVIUM
     #include "cavium_sysdep.h"
@@ -3005,19 +3005,19 @@ int rsa_test(void)
         static uint8_t const pers_str[] = {
                 'C', 'y', 'a', 'S', 'S', 'L', ' ', 't', 'e', 's', 't'
         };
-        word32 rc = crypto_drbg_instantiate(112, pers_str, sizeof(pers_str),
+        word32 rc = ntru_crypto_drbg_instantiate(112, pers_str, sizeof(pers_str),
                                             GetEntropy, &drbg);
         if (rc != DRBG_OK)
             return -450;
 
-        rc = crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
+        rc = ntru_crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
                                         NULL, &private_key_len, NULL);
         if (rc != NTRU_OK)
             return -451;
 
-        rc = crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
+        rc = ntru_crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
                                      public_key, &private_key_len, private_key);
-        crypto_drbg_uninstantiate(drbg);
+        ntru_crypto_drbg_uninstantiate(drbg);
 
         if (rc != NTRU_OK)
             return -452;
@@ -3066,7 +3066,7 @@ int rsa_test(void)
             return -458;
         FreeDecodedCert(&decode);
 #endif
-        derFile = fopen("./ntru-cert.der", "wb");
+        derFile = fopen("./certs/ntru-cert.der", "wb");
         if (!derFile)
             return -459;
         ret = fwrite(derCert, certSz, 1, derFile);
@@ -3076,13 +3076,13 @@ int rsa_test(void)
         if (pemSz < 0)
             return -460;
 
-        pemFile = fopen("./ntru-cert.pem", "wb");
+        pemFile = fopen("./certs/ntru-cert.pem", "wb");
         if (!pemFile)
             return -461;
         ret = fwrite(pem, pemSz, 1, pemFile);
         fclose(pemFile);
 
-        ntruPrivFile = fopen("./ntru-key.raw", "wb");
+        ntruPrivFile = fopen("./certs/ntru-key.raw", "wb");
         if (!ntruPrivFile)
             return -462;
         ret = fwrite(private_key, private_key_len, 1, ntruPrivFile);
