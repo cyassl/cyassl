@@ -273,6 +273,8 @@ static void test_harness(void* vargs)
     char* cursor;
     char* comment;
     const char* fname = "tests/test.conf";
+    char svname[50] = "examples/server/server";
+    char clname[50] = "examples/client/client";
 
     if (args->argc == 1) {
         printf("notice: using default file %s\n", fname);
@@ -324,9 +326,9 @@ static void test_harness(void* vargs)
 
     cursor = script;
     svrArgsSz = 1;
-    svrArgs[0] = args->argv[0];
+    svrArgs[0] = svname;
     cliArgsSz = 1;
-    cliArgs[0] = args->argv[0];
+    cliArgs[0] = clname;
 
     while (*cursor != 0) {
         int do_it = 0;
@@ -406,7 +408,7 @@ int SuiteTest(void)
     myArgv[0] = argv0[0];
     myArgv[1] = argv0[1];
     args.argv = myArgv;
-    strcpy(argv0[0], "SuiteTest");
+    strcpy(argv0[0], "examples/server/server");
 
     (void)test_harness;
 

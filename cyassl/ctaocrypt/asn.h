@@ -52,8 +52,10 @@ enum {
 
 /* ASN Tags   */
 enum ASN_Tags {        
+    ASN_OTHER_TYPE        = 0x00,
     ASN_BOOLEAN           = 0x01,
     ASN_INTEGER           = 0x02,
+    ASN_DNS_TYPE          = 0x02,
     ASN_BIT_STRING        = 0x03,
     ASN_OCTET_STRING      = 0x04,
     ASN_TAG_NULL          = 0x05,
@@ -62,9 +64,8 @@ enum ASN_Tags {
     ASN_UTF8STRING        = 0x0c,
     ASN_SEQUENCE          = 0x10,
     ASN_SET               = 0x11,
+    ASN_PRINTABLESTRING   = 0x13,
     ASN_UTC_TIME          = 0x17,
-    ASN_OTHER_TYPE        = 0x00,
-    ASN_DNS_TYPE          = 0x02,
     ASN_GENERALIZED_TIME  = 0x18,
     CRL_EXTENSIONS        = 0xa0,
     ASN_EXTENSIONS        = 0xa3,
@@ -187,7 +188,7 @@ enum Block_Sum {
 enum Key_Sum {
     DSAk   = 515,
     RSAk   = 645,
-    NTRUk  = 364,
+    NTRUk  = 274,
     ECDSAk = 518
 };
 

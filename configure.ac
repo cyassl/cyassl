@@ -1168,7 +1168,7 @@ if test "$ENABLED_NTRU" = "yes"
 then
     AM_CFLAGS="$AM_CFLAGS -DHAVE_NTRU -I$ntruInclude"
     AM_LDFLAGS="$AM_LDFLAGS -L$ntruLib"
-    LIBS="$LIBS -lntru_encrypt"
+    LIBS="$LIBS -lNTRUEncrypt"
 fi
 
 AM_CONDITIONAL([BUILD_NTRU], [test "x$ENABLED_NTRU" = "xyes"])

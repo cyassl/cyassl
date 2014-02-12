@@ -53,7 +53,7 @@
 #endif
 
 #ifdef HAVE_NTRU
-    #include "crypto_ntru.h"
+    #include "ntru_crypto.h"
 #endif
 
 #ifdef HAVE_ECC
@@ -1491,7 +1491,7 @@ static int GetKey(DecodedCert* cert)
             word16      keyLen;
             byte        keyBlob[MAX_NTRU_KEY_SZ];
 
-            word32 rc = crypto_ntru_encrypt_subjectPublicKeyInfo2PublicKey(key,
+            word32 rc = ntru_crypto_ntru_encrypt_subjectPublicKeyInfo2PublicKey(key,
                                 &keyLen, NULL, &next);
 
             if (rc != NTRU_OK)
@@ -1499,7 +1499,7 @@ static int GetKey(DecodedCert* cert)
             if (keyLen > sizeof(keyBlob))
                 return ASN_NTRU_KEY_E;
 
-            rc = crypto_ntru_encrypt_subjectPublicKeyInfo2PublicKey(key,&keyLen,
+            rc = ntru_crypto_ntru_encrypt_subjectPublicKeyInfo2PublicKey(key,&keyLen,
                                                                 keyBlob, &next);
             if (rc != NTRU_OK)
                 return ASN_NTRU_KEY_E;
@@ -4390,9 +4390,13 @@ static int SetName(byte* output, CertName* name)
                 names[i].encoded[idx++] = bType; 
                 /* str type */
                 if (bType == ASN_COUNTRY_NAME)
-                    names[i].encoded[idx++] = 0x13;   /* printable */
+                    names[i].encoded[idx++] = ASN_PRINTABLESTRING;
                 else
-                    names[i].encoded[idx++] = 0x0c;   /* utf8 */
+/* As a temporary workaround for https://github.com/cyassl/cyassl/issues/68
+   you can use the following line instead:
+                    names[i].encoded[idx++] = ASN_PRINTABLESTRING;
+*/
+                    names[i].encoded[idx++] = ASN_UTF8STRING;
             }
             /* second length */
             XMEMCPY(names[i].encoded + idx, secondLen, secondSz);
@@ -4472,14 +4476,14 @@ static int EncodeCert(Cert* cert, DerCert* der, RsaKey* rsaKey, ecc_key* eccKey,
         word32 rc;
         word16 encodedSz;
 
-        rc  = crypto_ntru_encrypt_publicKey2SubjectPublicKeyInfo( ntruSz,
+        rc  = ntru_crypto_ntru_encrypt_publicKey2SubjectPublicKeyInfo( ntruSz,
                                               ntruKey, &encodedSz, NULL);
         if (rc != NTRU_OK)
             return PUBLIC_KEY_E;
         if (encodedSz > MAX_PUBLIC_KEY_SZ)
             return PUBLIC_KEY_E;
 
-        rc  = crypto_ntru_encrypt_publicKey2SubjectPublicKeyInfo( ntruSz,
+        rc  = ntru_crypto_ntru_encrypt_publicKey2SubjectPublicKeyInfo( ntruSz,
                               ntruKey, &encodedSz, der->publicKey);
         if (rc != NTRU_OK)
             return PUBLIC_KEY_E;
