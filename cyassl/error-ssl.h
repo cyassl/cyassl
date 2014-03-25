@@ -1,4 +1,4 @@
-/* error.h
+/* error-ssl.h
  *
  * Copyright (C) 2006-2013 wolfSSL Inc.
  *
