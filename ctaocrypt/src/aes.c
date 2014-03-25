@@ -28,7 +28,7 @@
 #ifndef NO_AES
 
 #include <cyassl/ctaocrypt/aes.h>
-#include <cyassl/ctaocrypt/error.h>
+#include <cyassl/ctaocrypt/error-crypt.h>
 #include <cyassl/ctaocrypt/logging.h>
 #ifdef NO_INLINE
     #include <cyassl/ctaocrypt/misc.h>
@@ -3260,4 +3260,5 @@ static void AesCaviumCbcDecrypt(Aes* aes, byte* out, const byte* in,
 #endif /* HAVE_CAVIUM */
 
 #endif /* NO_AES */
+
 

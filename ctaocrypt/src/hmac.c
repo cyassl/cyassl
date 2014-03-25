@@ -28,7 +28,7 @@
 #ifndef NO_HMAC
 
 #include <cyassl/ctaocrypt/hmac.h>
-#include <cyassl/ctaocrypt/error.h>
+#include <cyassl/ctaocrypt/error-crypt.h>
 
 
 #ifdef HAVE_CAVIUM
