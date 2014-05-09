@@ -1285,6 +1285,8 @@ int ecc_shared_secret(ecc_key* private_key, ecc_key* public_key, byte* out,
 }
 
 
+#ifdef CYASSL_KEY_GEN
+
 int ecc_make_key_ex(RNG* rng, ecc_key* key, const ecc_set_type* dp);
 
 /**
@@ -1412,6 +1414,7 @@ int ecc_make_key_ex(RNG* rng, ecc_key* key, const ecc_set_type* dp)
    return err;
 }
 
+#endif /* CYASSL_KEY_GEN */
 
 /* Setup dynamic pointers is using normal math for proper freeing */
 void ecc_init(ecc_key* key)
