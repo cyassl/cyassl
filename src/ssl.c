@@ -1993,12 +1993,18 @@ int CyaSSL_Init(void)
                     XFREE(der.buffer, heap, dynamicType);
                     return BAD_FUNC_ARG;
                 }
+
+                if (ctx->certChain.buffer)
+                    XFREE(ctx->certChain.buffer, heap, dynamicType);
+
                 ctx->certChain.buffer = (byte*)XMALLOC(idx, heap,
                                                        dynamicType);
                 if (ctx->certChain.buffer) {
                     ctx->certChain.length = idx;
                     XMEMCPY(ctx->certChain.buffer, chainBuffer, idx);
                 }
+                if (ssl)
+                    ssl->buffers.certChain = ctx->certChain;
                 if (dynamicBuffer)
                     XFREE(chainBuffer, heap, DYNAMIC_TYPE_FILE);
                 if (ctx->certChain.buffer == NULL) {
