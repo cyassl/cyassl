@@ -1993,12 +1993,18 @@ int CyaSSL_Init(void)
                     XFREE(der.buffer, heap, dynamicType);
                     return BAD_FUNC_ARG;
                 }
+
+                if (ctx->certChain.buffer)
+                    XFREE(ctx->certChain.buffer, heap, dynamicType);
+
                 ctx->certChain.buffer = (byte*)XMALLOC(idx, heap,
                                                        dynamicType);
                 if (ctx->certChain.buffer) {
                     ctx->certChain.length = idx;
                     XMEMCPY(ctx->certChain.buffer, chainBuffer, idx);
                 }
+                if (ssl)
+                    ssl->buffers.certChain = ctx->certChain;
                 if (dynamicBuffer)
                     XFREE(chainBuffer, heap, DYNAMIC_TYPE_FILE);
                 if (ctx->certChain.buffer == NULL) {
@@ -10388,6 +10394,7 @@ static int initGlobalRNG = 0;
     }
 #endif /* NO_DSA */
 
+#ifndef NO_RSA
     static void InitCyaSSL_Rsa(CYASSL_RSA* rsa)
     {
         if (rsa) {
@@ -10404,7 +10411,6 @@ static int initGlobalRNG = 0;
             rsa->exSet    = 0;
         }
     }
-
 
     CYASSL_RSA* CyaSSL_RSA_new(void)
     {
@@ -10463,7 +10469,7 @@ static int initGlobalRNG = 0;
             XFREE(rsa, NULL, DYNAMIC_TYPE_RSA);
         }
     }
-
+#endif /* NO_RSA */
 
     static int SetIndividualExternal(CYASSL_BIGNUM** bn, mp_int* mpi)
     {
@@ -10535,7 +10541,7 @@ static int initGlobalRNG = 0;
     }
 #endif /* NO_DSA */
 
-
+#ifndef NO_RSA
     static int SetRsaExternal(CYASSL_RSA* rsa)
     {
         RsaKey* key;
@@ -10685,7 +10691,7 @@ static int initGlobalRNG = 0;
 
         return CyaSSL_BN_num_bytes(rsa->n);
     }
-
+#endif /* NO_RSA */
 
 #ifndef NO_DSA
     /* return SSL_SUCCESS on success, < 0 otherwise */
@@ -10725,7 +10731,7 @@ static int initGlobalRNG = 0;
     }
 #endif /* NO_DSA */
 
-
+#ifndef NO_RSA
     /* return SSL_SUCCES on ok, 0 otherwise */
     int CyaSSL_RSA_sign(int type, const unsigned char* m,
                                unsigned int mLen, unsigned char* sigRet,
@@ -10857,7 +10863,7 @@ static int initGlobalRNG = 0;
         else
             return SSL_FATAL_ERROR;
     }
-
+#endif /* NO_RSA */
 
     void CyaSSL_HMAC_Init(CYASSL_HMAC_CTX* ctx, const void* key, int keylen,
                       const EVP_MD* type)
@@ -11217,7 +11223,7 @@ static int initGlobalRNG = 0;
 
 
 
-
+#ifndef NO_RSA
 /* Load RSA from Der, SSL_SUCCESS on success < 0 on error */
 int CyaSSL_RSA_LoadDer(CYASSL_RSA* rsa, const unsigned char* der,  int derSz)
 {
@@ -11246,7 +11252,7 @@ int CyaSSL_RSA_LoadDer(CYASSL_RSA* rsa, const unsigned char* der,  int derSz)
 
     return SSL_SUCCESS;
 }
-
+#endif /* NO_RSA */
 
 #ifndef NO_DSA
 /* Load DSA from Der, SSL_SUCCESS on success < 0 on error */
