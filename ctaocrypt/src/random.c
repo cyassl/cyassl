@@ -775,8 +775,14 @@ int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 {
     word32 i;
+#ifdef CUSTOM_RAND_GENERATE
+    for (i = 0; i < sz; i++ )
+        output[i] = CUSTOM_RAND_GENERATE();
+#else
+#warning "write a real random seed!!!!, just for testing now"
     for (i = 0; i < sz; i++ )
         output[i] = i;
+#endif
 
     (void)os;
 
