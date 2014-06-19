@@ -97,6 +97,8 @@
     #endif
 #elif defined(MBED)
 
+#elif defined(CYASSL_IAR_ARM)
+    /* do nothing */
 #else
     #ifndef SINGLE_THREADED
         #define CYASSL_PTHREADS

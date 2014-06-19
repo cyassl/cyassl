@@ -61,7 +61,9 @@
         #include <rtl.h>
     #endif
 #elif defined(CYASSL_CMSIS_RTOS)
-    #include "cmsis_os.h"    
+    #include "cmsis_os.h"
+#elif defined(CYASSL_IAR_ARM)
+    /* do nothing */
 #else
     #ifndef SINGLE_THREADED
         #define CYASSL_PTHREADS
