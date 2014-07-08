@@ -1,4 +1,6 @@
 
+
+
 ***** Create a self signed cert ************
 
 1) openssl genrsa 1024 > client-key.pem
