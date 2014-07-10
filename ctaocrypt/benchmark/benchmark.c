@@ -1082,6 +1082,8 @@ void bench_ntruKeyGen(void)
 
     for(i = 0; i < genTimes; i++) {
         ntru_crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
+                                    NULL, &private_key_len, NULL);
+        ntru_crypto_ntru_encrypt_keygen(drbg, NTRU_EES401EP2, &public_key_len,
                                      public_key, &private_key_len, private_key);
     }
 
