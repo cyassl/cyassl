@@ -31,7 +31,7 @@
 #-opt-# cp blank.index.txt demoCA/index.txt
 
 ######## cliCrl ########
-openssl ca -gencrl -crldays 365 -out cliCrl.pem -keyfile ~/cyassl/certs/client-key.pem -cert ~/cyassl/certs/client-cert.pem
+openssl ca -gencrl -crldays 365 -out cliCrl.pem -keyfile ~/work/my_cyassl_git/certs/client-key.pem -cert ~/work/my_cyassl_git/certs/client-cert.pem
 
             ## metadata ##
 openssl crl -in cliCrl.pem -text > tmp
