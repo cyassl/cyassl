@@ -1,0 +1,6 @@
+
+[skidakid]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer:always
+basicConstraints=CA:true
+
