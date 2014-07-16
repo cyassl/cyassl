@@ -79,65 +79,6 @@ cd ../
 echo "Execute ./gencertbuf.pl..."
 echo ""
 ./gencertbuf.pl
-<<<<<<< Updated upstream
-############################################################
-########## update the ntru-cert.pem & ntru-key.pem #########
-############################################################
-# check options.h for HAVE_NTRU defined
-
-# if DEFINED
-if [ grep HAVE_NTRU "cyassl/options.h" ]; then
-    echo "HAVE_NTRU, good to procede."
-else
-    # Save the users configure state
-    echo "Saving the configure state"
-    echo ""
-    cp config.status tmp.status
-    cp cyassl/options.h tmp.options.h
-
-    # run make clean
-    echo "Running make clean"
-    echo ""
-    make clean
-    # Configure with ntru, enable certgen and keygen
-    echo "Configuring with ntru, enabling certgen and keygen"
-    echo ""
-    ./configure --with-ntru --enable-certgen --enable-keygen
-    # run make check
-    make check
-fi #END DEFINED
-
-# check options.h a second time, if the user had
-# ntru installed on their system and in the default
-# path location, then it will now be defined, if the 
-# user does not have ntru on their system this will fail
-# again and we will not update the ntru-cert and ntru-key
-
-# if NOW_DEFINED 
-if [ grep HAVE_NTRU "cyassl/options.h" ]; then
-    # copy/paste ntru-cert to certs/
-    mv ntru-cert.pem certs/ntru-cert.pem
-    # copy/paste ntru-key to certs/
-    mv ntru-key.raw certs/ntru-key.raw
-                                              
-    # restore previous configure state
-    mv tmp.status config.status
-    mv tmp.options.h cyassl/options.h
-    make clean
-    make -j 8
-else
-    # restore previous configure state
-    mv tmp.status config.status
-    mv tmp.options.h cyassl/options.h
-    make clean
-    make -j 8
-    echo "User does not have ntru installed at the default location,"
-    echo "or the user does not have ntru installed."
-    echo ""
-fi #END NOW_DEFINED
-=======
->>>>>>> Stashed changes
-
 ############################################################
 ########## generate the new crls ###########################
 ############################################################
@@ -179,13 +120,8 @@ rm -r demoCA
 echo "Removed ../cyassl_custom.cnf, blank.index.txt, index.*, crlnumber*, demoCA/"
 echo ""
 
-<<<<<<< Updated upstream
-cd ../
-echo "changed directory: cd ../"
-=======
 cd ../../
 echo "changed directory to cyassl root directory."
->>>>>>> Stashed changes
 echo ""
 
 ############################################################
