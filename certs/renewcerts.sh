@@ -130,7 +130,7 @@ echo ""
 # check options.h for HAVE_NTRU defined
 
 # if DEFINED
-if grep HAVE_NTRU "cyassl/options.h"
+if [ grep HAVE_NTRU "cyassl/options.h" ];
 then
     echo "HAVE_NTRU, good to procede."
     echo ""
@@ -166,7 +166,7 @@ else
     # again and we will not update the ntru-cert and ntru-key
 
     # if NOW_DEFINED 
-    if grep HAVE_NTRU "cyassl/options.h"
+    if [ grep HAVE_NTRU "cyassl/options.h" ];
     then
         # copy/paste ntru-certs to certs/
         cp ntru-cert.pem certs/ntru-cert.pem
@@ -189,7 +189,7 @@ else
         make -j 8
         echo ""
         echo "User does not have ntru installed at the default location,"
-        echo "or the user does not have ntru installed, ntru-cert.pem and"
+        echo "or the user does not have ntru installed, ntru-certs and"
         echo "ntru-key.raw were not updated."
         echo "Please check your ntru install location."
         echo "Run ./configure --with-ntru=<install_path_here> --enable-certgen --enable-keygen"
