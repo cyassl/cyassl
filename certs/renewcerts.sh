@@ -130,8 +130,7 @@ echo ""
 # check options.h for HAVE_NTRU defined
 
 # if DEFINED
-if [ grep HAVE_NTRU "cyassl/options.h" ];
-then
+if grep HAVE_NTRU "cyassl/options.h"; then
     echo "HAVE_NTRU, good to procede."
     echo ""
     ./configure --with-ntru --enable-certgen --enable-keygen
@@ -166,8 +165,7 @@ else
     # again and we will not update the ntru-cert and ntru-key
 
     # if NOW_DEFINED 
-    if [ grep HAVE_NTRU "cyassl/options.h" ];
-    then
+    if grep HAVE_NTRU "cyassl/options.h"; then
         # copy/paste ntru-certs to certs/
         cp ntru-cert.pem certs/ntru-cert.pem
         cp ntru-cert.der certs/ntru-cert.der
