@@ -5,7 +5,7 @@
 
 
 # caCrl
-openssl ca -config ../renewcerts/cyassl_global.cnf -gencrl -crldays 365 -out crl.pem -keyfile $PWD/../ca-key.pem -cert $PWD/../ca-cert.pem
+openssl ca -config ../renewcerts/cyassl.cnf -gencrl -crldays 365 -out crl.pem -keyfile ../ca-key.pem -cert ../ca-cert.pem
 
 # metadata
 openssl crl -in crl.pem -text > tmp
@@ -14,10 +14,10 @@ mv tmp crl.pem
 #cp crl.pem ~/cyassl/certs/crl/crl.pem
 
 # caCrl server revoked
-openssl ca -config ../renewcerts/cyassl_global.cnf -revoke $PWD/../server-cert.pem -keyfile $PWD/../ca-key.pem -cert $PWD/../ca-cert.pem
+openssl ca -config ../renewcerts/cyassl.cnf -revoke ../server-cert.pem -keyfile ../ca-key.pem -cert ../ca-cert.pem
 
 # caCrl server revoked generation
-openssl ca -config ../renewcerts/cyassl_global.cnf -gencrl -crldays 365 -out crl.revoked -keyfile $PWD/../ca-key.pem -cert $PWD/../ca-cert.pem
+openssl ca -config ../renewcerts/cyassl.cnf -gencrl -crldays 365 -out crl.revoked -keyfile ../ca-key.pem -cert ../ca-cert.pem
 
 # metadata
 openssl crl -in crl.revoked -text > tmp
@@ -29,7 +29,7 @@ mv tmp crl.revoked
 cp blank.index.txt demoCA/index.txt
 
 # cliCrl
-openssl ca -config ../renewcerts/cyassl_global.cnf -gencrl -crldays 365 -out cliCrl.pem -keyfile $PWD/../client-key.pem -cert $PWD/../client-cert.pem
+openssl ca -config ../renewcerts/cyassl.cnf -gencrl -crldays 365 -out cliCrl.pem -keyfile ../client-key.pem -cert ../client-cert.pem
 
 # metadata
 openssl crl -in cliCrl.pem -text > tmp
@@ -38,7 +38,7 @@ mv tmp cliCrl.pem
 #cp cliCrl.pem ~/cyassl/certs/crl/cliCrl.pem
 
 # eccCliCRL
-openssl ca -config ../renewcerts/cyassl_global.cnf -gencrl -crldays 365 -out eccCliCRL.pem -keyfile $PWD/../ecc-client-key.pem -cert $PWD/../client-ecc-cert.pem
+openssl ca -config ../renewcerts/cyassl.cnf -gencrl -crldays 365 -out eccCliCRL.pem -keyfile ../ecc-client-key.pem -cert ../client-ecc-cert.pem
 
 # metadata
 openssl crl -in eccCliCRL.pem -text > tmp
@@ -47,7 +47,7 @@ mv tmp eccCliCRL.pem
 #cp eccCliCRL.pem ~/cyassl/certs/crl/eccCliCRL.pem
 
 # eccSrvCRL
-openssl ca -config ../renewcerts/cyassl_global.cnf -gencrl -crldays 365 -out eccSrvCRL.pem -keyfile $PWD/../ecc-key.pem -cert $PWD/../server-ecc.pem
+openssl ca -config ../renewcerts/cyassl.cnf -gencrl -crldays 365 -out eccSrvCRL.pem -keyfile ../ecc-key.pem -cert ../server-ecc.pem
 
 # metadata
 openssl crl -in eccSrvCRL.pem -text > tmp
