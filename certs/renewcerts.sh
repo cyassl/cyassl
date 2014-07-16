@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #move the custom cnf into our working directory
-cp renewcerts/cyassl_custom.cnf cyassl_custom.cnf
+cp renewcerts/cyassl.cnf cyassl.cnf
 
 # To generate these all in sha1 add the flag "-sha1" on appropriate lines
 # That is all lines beginning with:  "openssl req"
@@ -15,7 +15,7 @@ echo ""
 echo -e "US\nMontana\nBozeman\nwolfSSL\nProgramming\nwww.wolfssl.com\ninfo@wolfssl.com\n.\n.\n" | openssl req -new -key client-key.pem -nodes -out client-cert.csr
 
 
-openssl x509 -req -in client-cert.csr -days 1000 -extfile cyassl_custom.cnf -extensions cyassl_opts -signkey client-key.pem -out client-cert.pem
+openssl x509 -req -in client-cert.csr -days 1000 -extfile cyassl.cnf -extensions cyassl_opts -signkey client-key.pem -out client-cert.pem
 rm client-cert.csr
 
 openssl x509 -in client-cert.pem -text > tmp.pem
@@ -29,7 +29,7 @@ echo ""
 echo -e  "US\nMontana\nBozeman\nSawtooth\nConsulting\nwww.wolfssl.com\ninfo@wolfssl.com\n.\n.\n" | openssl req -new -key ca-key.pem -nodes -out ca-cert.csr
 
 
-openssl x509 -req -in ca-cert.csr -days 1000 -extfile cyassl_custom.cnf -extensions cyassl_opts -signkey ca-key.pem -out ca-cert.pem
+openssl x509 -req -in ca-cert.csr -days 1000 -extfile cyassl.cnf -extensions cyassl_opts -signkey ca-key.pem -out ca-cert.pem
 rm ca-cert.csr
 
 openssl x509 -in ca-cert.pem -text > tmp.pem
@@ -42,7 +42,7 @@ echo ""
 #pipe the following arguments to openssl req...
 echo -e "US\nMontana\nBozeman\nwolfSSL\nSupport\nwww.wolfssl.com\ninfo@wolfssl.com\n.\n.\n" | openssl req -new -key server-key.pem -nodes > server-req.pem
 
-openssl x509 -req -in server-req.pem -extfile cyassl_custom.cnf -extensions cyassl_opts -days 1000 -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 > server-cert.pem
+openssl x509 -req -in server-req.pem -extfile cyassl.cnf -extensions cyassl_opts -days 1000 -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 > server-cert.pem
 
 rm server-req.pem
 
@@ -58,7 +58,7 @@ echo "Updating server-ecc-rsa.pem"
 echo ""
 echo -e "US\nMontana\nBozeman\nElliptic - RSAsig\nECC-RSAsig\nwww.wolfssl.com\ninfo@wolfssl.com\n.\n.\n" | openssl req -new -key ecc-key.pem -nodes > server-ecc-req.pem
 
-openssl x509 -req -in server-ecc-req.pem -extfile cyassl_custom.cnf -extensions cyassl_opts -days 1000 -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 > server-ecc-rsa.pem
+openssl x509 -req -in server-ecc-req.pem -extfile cyassl.cnf -extensions cyassl_opts -days 1000 -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 > server-ecc-rsa.pem
 
 rm server-ecc-req.pem
 
@@ -112,12 +112,12 @@ echo ""
 echo "Performing final steps, cleaning up the file system..."
 echo ""
 
-rm ../cyassl_custom.cnf
+rm ../cyassl.cnf
 rm blank.index.txt
 rm index.*
 rm crlnumber*
 rm -r demoCA
-echo "Removed ../cyassl_custom.cnf, blank.index.txt, index.*, crlnumber*, demoCA/"
+echo "Removed ../cyassl.cnf, blank.index.txt, index.*, crlnumber*, demoCA/"
 echo ""
 
 cd ../../

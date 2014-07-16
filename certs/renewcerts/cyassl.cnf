@@ -119,6 +119,12 @@ nsComment            = "cyaSSL Generated Certificate using openSSL command line 
 subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid,issuer
 
+#cyassl extensions
+[cyassl_opts]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer:always
+basicConstraints=CA:true
+
 
 # Extensions to add to a certificate request
 [ v3_req ]
