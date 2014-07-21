@@ -151,7 +151,8 @@ function move_ntru(){
 #start in root.
 cd ../
 #if HAVE_NTRU already defined
-if grep HAVE_NTRU "cyassl/options.h"; then
+if [ grep HAVE_NTRU "cyassl/options.h" ] && [ -z "$1" ]
+then
 
     #run the function to renew the certs
     run_renewcerts
@@ -216,7 +217,8 @@ else
     # ntru in the default location
 
     # if now defined
-    if grep HAVE_NTRU "cyassl/options.h"; then
+    if [ grep HAVE_NTRU "cyassl/options.h" ]
+    then
         run_renewcerts
         #run_renewcerts leaves us in cyassl/certs/crl, backup to root
         cd ../../
