@@ -5,7 +5,6 @@
 
 #the function that will be called when we are ready to renew the certs.
 function run_renewcerts(){
-    echo "HAVE_NTRU, good to procede."
     cd certs/
     echo ""
     #move the custom cnf into our working directory
@@ -217,8 +216,7 @@ else
     # ntru in the default location
 
     # if now defined
-    if [ grep HAVE_NTRU "cyassl/options.h" ]
-    then
+    if grep HAVE_NTRU "cyassl/options.h"; then
         run_renewcerts
         #run_renewcerts leaves us in cyassl/certs/crl, backup to root
         cd ../../
