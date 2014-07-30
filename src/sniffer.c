@@ -335,7 +335,7 @@ void ssl_InitSniffer(void)
 
 
 /* Free Sniffer Server's resources/self */
-static void FreeSnifferServer(SnifferServer* srv)
+void FreeSnifferServer(SnifferServer* srv)
 {
     if (srv)
         SSL_CTX_free(srv->ctx);
@@ -370,7 +370,7 @@ static void FreePacketList(PacketBuffer* in)
 
 
 /* Free Sniffer Session's resources/self */
-static void FreeSnifferSession(SnifferSession* session)
+void FreeSnifferSession(SnifferSession* session)
 {
     if (session) {
         SSL_free(session->sslClient);
@@ -882,37 +882,29 @@ static SnifferSession* GetSnifferSession(IpInfo* ipInfo, TcpInfo* tcpInfo)
     return session;
 }
 
-
-/* Sets the private key for a specific server and port  */
-/* returns 0 on success, -1 on error */
-int ssl_SetPrivateKey(const char* serverAddress, int port, const char* keyFile,
-                      int typeKey, const char* password, char* error)
+/* Create a sniffer based on the given keyFile and password;
+   returns NULL on error */
+SnifferServer* CreateSnifferServer(const char* keyFile, int typeKey,
+                                   const char* password, char* error)
 {
     int            ret;
     int            type = (typeKey == FILETYPE_PEM) ? SSL_FILETYPE_PEM :
                                                       SSL_FILETYPE_ASN1;
-    SnifferServer* sniffer;
-
-    TraceHeader();
-    TraceSetServer(serverAddress, port, keyFile);
+    SnifferServer* sniffer = 0;
 
     sniffer = (SnifferServer*)malloc(sizeof(SnifferServer));
     if (sniffer == NULL) {
         SetError(MEMORY_STR, error, NULL, 0);
-        return -1;
+        return NULL;
     }
     InitSnifferServer(sniffer);
-
-    XSTRNCPY(sniffer->address, serverAddress, MAX_SERVER_ADDRESS);
-    sniffer->server = inet_addr(sniffer->address);
-    sniffer->port = port;
 
     /* start in client mode since SSL_new needs a cert for server */
     sniffer->ctx = SSL_CTX_new(SSLv3_client_method());
     if (!sniffer->ctx) {
         SetError(MEMORY_STR, error, NULL, 0);
         FreeSnifferServer(sniffer);
-        return -1;
+        return NULL;
     }
 
     if (password){
@@ -923,9 +915,33 @@ int ssl_SetPrivateKey(const char* serverAddress, int port, const char* keyFile,
     if (ret != SSL_SUCCESS) {
         SetError(KEY_FILE_STR, error, NULL, 0);
         FreeSnifferServer(sniffer);
-        return -1;
+        return NULL;
     }
     Trace(NEW_SERVER_STR);
+
+    return sniffer;
+}
+
+
+/* Sets the private key for a specific server and port  */
+/* returns 0 on success, -1 on error */
+int ssl_SetPrivateKey(const char* serverAddress, int port, const char* keyFile,
+                      int typeKey, const char* password, char* error)
+{
+    SnifferServer* sniffer = 0;
+
+    TraceHeader();
+    TraceSetServer(serverAddress, port, keyFile);
+
+    sniffer = CreateSnifferServer(keyFile, typeKey, password, error);
+    if (sniffer == NULL) {
+        // CreateSnifferServer will have set error
+        return -1;
+    }
+
+    XSTRNCPY(sniffer->address, serverAddress, MAX_SERVER_ADDRESS);
+    sniffer->server = inet_addr(sniffer->address);
+    sniffer->port = port;
 
     LockMutex(&ServerListMutex);
 

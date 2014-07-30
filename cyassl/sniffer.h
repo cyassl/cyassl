@@ -72,6 +72,17 @@ SSL_SNIFFER_API SnifferSession* CreateBareSession(SnifferServer* server2,
                                                   char* error);
 
 CYASSL_API
+SSL_SNIFFER_API SnifferServer* CreateSnifferServer(const char* keyFile, int keyType,
+                                                   const char* password, char* error);
+
+CYASSL_API
+SSL_SNIFFER_API void FreeSnifferSession(SnifferSession* session);
+
+CYASSL_API
+SSL_SNIFFER_API void FreeSnifferServer(SnifferServer* srv);
+
+
+CYASSL_API
 SSL_SNIFFER_API int ssl_SetPrivateKey(const char* address, int port,
                                       const char* keyFile, int keyType,
                                       const char* password, char* error);
