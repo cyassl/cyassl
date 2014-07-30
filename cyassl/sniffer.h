@@ -41,24 +41,24 @@
 #endif
 
 
-CYASSL_API 
+CYASSL_API
 SSL_SNIFFER_API int ssl_SetPrivateKey(const char* address, int port,
                                       const char* keyFile, int keyType,
                                       const char* password, char* error);
 
-CYASSL_API 
+CYASSL_API
 SSL_SNIFFER_API int ssl_DecodePacket(const unsigned char* packet, int length,
                                      unsigned char* data, char* error);
 
-CYASSL_API 
+CYASSL_API
 SSL_SNIFFER_API int ssl_Trace(const char* traceFile, char* error);
-        
-        
+
+
 CYASSL_API void ssl_InitSniffer(void);
-        
+
 CYASSL_API void ssl_FreeSniffer(void);
 
-        
+
 /* ssl_SetPrivateKey keyTypes */
 enum {
     FILETYPE_PEM = 1,
@@ -71,4 +71,3 @@ enum {
 #endif
 
 #endif /* CyaSSL_SNIFFER_H */
-
