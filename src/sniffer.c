@@ -2346,8 +2346,8 @@ static int HaveMoreInput(SnifferSession* session, const byte** sslFrame,
 
 /* Process Message(s) from sslFrame */
 /* return Number of bytes on success, 0 for no data yet, and -1 on error */
-static int ProcessMessage(const byte* sslFrame, SnifferSession* session,
-                          int sslBytes, byte* data, const byte* end,char* error)
+int ProcessMessage(const byte* sslFrame, SnifferSession* session,
+                   int sslBytes, byte* data, const byte* end,char* error)
 {
     const byte*       sslBegin = sslFrame;
     const byte*       tmp;
