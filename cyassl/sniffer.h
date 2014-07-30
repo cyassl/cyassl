@@ -24,6 +24,7 @@
 #define CYASSL_SNIFFER_H
 
 #include <cyassl/ctaocrypt/settings.h>
+#include <cyassl/ctaocrypt/types.h>
 
 #ifdef _WIN32
     #ifdef SSL_SNIFFER_EXPORTS
@@ -39,6 +40,29 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
+
+
+/* IP Info from IP Header */
+typedef struct IpInfo {
+    int    length;        /* length of this header */
+    int    total;         /* total length of fragment */
+    word32 src;           /* network order source address */
+    word32 dst;           /* network order destination address */
+} IpInfo;
+
+
+/* TCP Info from TCP Header */
+typedef struct TcpInfo {
+    int    srcPort;       /* source port */
+    int    dstPort;       /* source port */
+    int    length;        /* length of this header */
+    word32 sequence;      /* sequence number */
+    word32 ackNumber;     /* ack number */
+    byte   fin;           /* FIN set */
+    byte   rst;           /* RST set */
+    byte   syn;           /* SYN set */
+    byte   ack;           /* ACK set */
+} TcpInfo;
 
 
 CYASSL_API

@@ -489,29 +489,6 @@ static void InitSession(SnifferSession* session)
 }
 
 
-/* IP Info from IP Header */
-typedef struct IpInfo {
-    int    length;        /* length of this header */
-    int    total;         /* total length of fragment */
-    word32 src;           /* network order source address */
-    word32 dst;           /* network order destination address */
-} IpInfo;
-
-
-/* TCP Info from TCP Header */
-typedef struct TcpInfo {
-    int    srcPort;       /* source port */
-    int    dstPort;       /* source port */
-    int    length;        /* length of this header */
-    word32 sequence;      /* sequence number */
-    word32 ackNumber;     /* ack number */
-    byte   fin;           /* FIN set */
-    byte   rst;           /* RST set */
-    byte   syn;           /* SYN set */
-    byte   ack;           /* ACK set */
-} TcpInfo;
-
-
 /* Tcp Pseudo Header for Checksum calculation */
 typedef struct TcpPseudoHdr {
     word32  src;        /* source address */
