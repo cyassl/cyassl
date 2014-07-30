@@ -82,6 +82,12 @@ int CheckPreRecord(IpInfo* ipInfo, TcpInfo* tcpInfo,
                    int* sslBytes, const byte** end, char* error);
 
 CYASSL_API
+SSL_SNIFFER_API void SetSessionDirection(SnifferSession* session, int is_initiator);
+
+CYASSL_API
+SSL_SNIFFER_API int IsSessionFatal(SnifferSession* session);
+
+CYASSL_API
 SSL_SNIFFER_API void FreeSnifferSession(SnifferSession* session);
 
 CYASSL_API

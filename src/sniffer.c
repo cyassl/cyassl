@@ -2268,6 +2268,21 @@ int CheckPreRecord(IpInfo* ipInfo, TcpInfo* tcpInfo,
 }
 
 
+void SetSessionDirection(SnifferSession* session, int is_initiator)
+{
+    if (is_initiator)
+        session->flags.side = CYASSL_SERVER_END;
+    else
+        session->flags.side = CYASSL_CLIENT_END;
+}
+
+
+int IsSessionFatal(SnifferSession* session)
+{
+    return session->flags.fatalError;
+}
+
+
 /* See if input on the reassembly list is ready for consuming */
 /* returns 1 for TRUE, 0 for FALSE */
 static int HaveMoreInput(SnifferSession* session, const byte** sslFrame,
