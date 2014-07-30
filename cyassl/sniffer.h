@@ -64,6 +64,12 @@ typedef struct TcpInfo {
     byte   ack;           /* ACK set */
 } TcpInfo;
 
+typedef struct SnifferServer SnifferServer;
+typedef struct SnifferSession SnifferSession;
+
+CYASSL_API
+SSL_SNIFFER_API SnifferSession* CreateBareSession(SnifferServer* server2,
+                                                  char* error);
 
 CYASSL_API
 SSL_SNIFFER_API int ssl_SetPrivateKey(const char* address, int port,

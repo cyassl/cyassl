@@ -1673,13 +1673,11 @@ static void RemoveStaleSessions(void)
     }
 }
 
-
-/* Create a new Sniffer Session */
-static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
-                                     char* error)
+// Create a new Sniffer Session with the given SnifferServer,
+// but do not insert the session in the sessionlists/store the ip/ports.
+SnifferSession* CreateBareSession(SnifferServer* server2, char* error)
 {
     SnifferSession* session = 0;
-    int row;
 
     Trace(NEW_SESSION_STR);
     /* create a new one */
@@ -1689,20 +1687,7 @@ static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
         return 0;
     }
     InitSession(session);
-    session->server  = ipInfo->dst;
-    session->client  = ipInfo->src;
-    session->srvPort = (word16)tcpInfo->dstPort;
-    session->cliPort = (word16)tcpInfo->srcPort;
-    session->cliSeqStart = tcpInfo->sequence;
-    session->cliExpected = 1;  /* relative */
-    session->lastUsed= time(NULL);
-
-    session->context = GetSnifferServer(ipInfo, tcpInfo);
-    if (session->context == NULL) {
-        SetError(SERVER_NOT_REG_STR, error, NULL, 0);
-        free(session);
-        return 0;
-    }
+    session->context = server2;
 
     session->sslServer = SSL_new(session->context->ctx);
     if (session->sslServer == NULL) {
@@ -1721,6 +1706,37 @@ static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
     }
     /* put server back into server mode */
     session->sslServer->options.side = CYASSL_SERVER_END;
+
+    return session;
+}
+
+/* Create a new Sniffer Session */
+static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
+                                     char* error)
+{
+    int row;
+    SnifferSession* session = 0;
+    SnifferServer *server2 = 0;
+
+    server2 = GetSnifferServer(ipInfo, tcpInfo);
+    if (server2 == NULL) {
+        SetError(SERVER_NOT_REG_STR, error, NULL, 0);
+        return 0;
+    }
+
+    session = CreateBareSession(server2, error);
+    if (session == NULL) {
+        // CreateBareSession sets the error for us
+        return 0;
+    }
+
+    session->server  = ipInfo->dst;
+    session->client  = ipInfo->src;
+    session->srvPort = (word16)tcpInfo->dstPort;
+    session->cliPort = (word16)tcpInfo->srcPort;
+    session->cliSeqStart = tcpInfo->sequence;
+    session->cliExpected = 1;  /* relative */
+    session->lastUsed= time(NULL);
 
     row = SessionHash(ipInfo, tcpInfo);
 
