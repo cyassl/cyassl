@@ -76,6 +76,12 @@ SSL_SNIFFER_API SnifferServer* CreateSnifferServer(const char* keyFile, int keyT
                                                    const char* password, char* error);
 
 CYASSL_API
+SSL_SNIFFER_API
+int CheckPreRecord(IpInfo* ipInfo, TcpInfo* tcpInfo,
+                   const byte** sslFrame, SnifferSession** session,
+                   int* sslBytes, const byte** end, char* error);
+
+CYASSL_API
 SSL_SNIFFER_API void FreeSnifferSession(SnifferSession* session);
 
 CYASSL_API

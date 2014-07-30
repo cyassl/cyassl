@@ -2206,15 +2206,15 @@ static int CheckSequence(IpInfo* ipInfo, TcpInfo* tcpInfo,
 
 /* Check Status before record processing */
 /* returns 0 on success (continue), -1 on error, 1 on success (end) */
-static int CheckPreRecord(IpInfo* ipInfo, TcpInfo* tcpInfo,
-                          const byte** sslFrame, SnifferSession** session,
-                          int* sslBytes, const byte** end, char* error)
+int CheckPreRecord(IpInfo* ipInfo, TcpInfo* tcpInfo,
+                   const byte** sslFrame, SnifferSession** session,
+                   int* sslBytes, const byte** end, char* error)
 {
     word32 length;
     SSL*  ssl = ((*session)->flags.side == CYASSL_SERVER_END) ?
                                   (*session)->sslServer : (*session)->sslClient;
     /* remove SnifferSession on 2nd FIN or RST */
-    if (tcpInfo->fin || tcpInfo->rst) {
+    if (tcpInfo && (tcpInfo->fin || tcpInfo->rst)) {
         /* flag FIN and RST */
         if (tcpInfo->fin)
             (*session)->flags.finCount += 1;
