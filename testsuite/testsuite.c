@@ -20,11 +20,14 @@
  */
 
 #ifdef HAVE_CONFIG_H
-    #include <config.h>
+#include <config.h>
 #endif
 
+#include <string.h>
+#include <stdio.h>
 #include <cyassl/ctaocrypt/settings.h>
-
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <cyassl/test.h>
 #include "ctaocrypt/test/test.h"
 
@@ -43,44 +46,35 @@ void file_test(const char* file, byte* hash);
 
 void simple_test(func_args*);
 
+int mymkstemp(char* template);
+
 enum {
     NUMARGS = 3
 };
 
-#ifndef USE_WINDOWS_API
-    static const char outputName[] = "/tmp/output";
-#else
-    static const char outputName[] = "output";
-#endif
-
+char nameBuff[32];
+int filedes = -1;
 
 int myoptind = 0;
 char* myoptarg = NULL;
-
-
-#ifndef NO_TESTSUITE_MAIN_DRIVER
-
-    static int testsuite_test(int argc, char** argv);
-
-    int main(int argc, char** argv)
-    {
-        return testsuite_test(argc, argv);
-    }
-
-#endif /* NO_TESTSUITE_MAIN_DRIVER */
-
-
-int testsuite_test(int argc, char** argv)
+int main(int argc, char** argv)
 {
+
+#ifndef USE_WINDOWS_API
+    char outputName[] = "/tmp/output-XXXXXX";
+#else
+    char outputName[] = "fnXXXXXX";
+#endif
+
     func_args server_args;
 
     tcp_ready ready;
     THREAD_TYPE serverThread;
 
 #ifdef HAVE_CAVIUM
-        int ret = OpenNitroxDevice(CAVIUM_DIRECT, CAVIUM_DEV_ID);
-        if (ret != 0)
-            err_sys("Cavium OpenNitroxDevice failed");
+    int ret = OpenNitroxDevice(CAVIUM_DIRECT, CAVIUM_DEV_ID);
+    if (ret != 0)
+        err_sys("Cavium OpenNitroxDevice failed");
 #endif /* HAVE_CAVIUM */
 
     StartTCP();
@@ -93,27 +87,20 @@ int testsuite_test(int argc, char** argv)
     CyaSSL_Debugging_ON();
 #endif
 
-#if !defined(TIRTOS)
     if (CurrentDir("testsuite") || CurrentDir("_build"))
         ChangeDirBack(1);
     else if (CurrentDir("Debug") || CurrentDir("Release"))
         ChangeDirBack(3);          /* Xcode->Preferences->Locations->Locations*/
-                                   /* Derived Data Advanced -> Custom  */
-                                   /* Relative to Workspace, Build/Products */
-                                   /* Debug or Release */
-#endif
-
-#ifdef TIRTOS
-    fdOpenSession(TaskSelf());
-#endif
-
+    /* Derived Data Advanced -> Custom  */
+    /* Relative to Workspace, Build/Products */
+    /* Debug or Release */
     server_args.signal = &ready;
     InitTcpReady(&ready);
 
     /* CTaoCrypt test */
     ctaocrypt_test(&server_args);
     if (server_args.return_code != 0) return server_args.return_code;
- 
+
     /* Simple CyaSSL client server test */
     simple_test(&server_args);
     if (server_args.return_code != 0) return server_args.return_code;
@@ -124,6 +111,7 @@ int testsuite_test(int argc, char** argv)
     {
         func_args echo_args;
         char* myArgv[NUMARGS];
+        int fd;
 
         char argc0[32];
         char argc1[32];
@@ -135,11 +123,15 @@ int testsuite_test(int argc, char** argv)
 
         echo_args.argc = 3;
         echo_args.argv = myArgv;
-   
+
+        /* Change outputName XXXXXX's to unique file name */
+        if ( (fd = mymkstemp(outputName)) == -1) {
+            return EXIT_FAILURE;
+        }
+
         strcpy(echo_args.argv[0], "echoclient");
         strcpy(echo_args.argv[1], "input");
         strcpy(echo_args.argv[2], outputName);
-        remove(outputName);
 
         /* Share the signal, it has the new port number in it. */
         echo_args.signal = server_args.signal;
@@ -173,19 +165,15 @@ int testsuite_test(int argc, char** argv)
     }
 
     CyaSSL_Cleanup();
+    remove(outputName);
     FreeTcpReady(&ready);
 
-#ifdef TIRTOS
-    fdCloseSession(TaskSelf());
-#endif
-
 #ifdef HAVE_CAVIUM
-        CspShutdown(CAVIUM_DEV_ID);
+    CspShutdown(CAVIUM_DEV_ID);
 #endif
     printf("\nAll tests passed!\n");
     return EXIT_SUCCESS;
 }
-
 void simple_test(func_args* args)
 {
     THREAD_TYPE serverThread;
@@ -227,35 +215,34 @@ void simple_test(func_args* args)
     cliArgs.argc = 1;
     cliArgs.argv = cliArgv;
     cliArgs.return_code = 0;
-   
+
     strcpy(svrArgs.argv[0], "SimpleServer");
-    #if !defined(USE_WINDOWS_API) && !defined(CYASSL_SNIFFER)  && \
-                                     !defined(TIRTOS)
-        strcpy(svrArgs.argv[svrArgs.argc++], "-p");
-        strcpy(svrArgs.argv[svrArgs.argc++], "0");
-    #endif
-    #ifdef HAVE_NTRU
-        strcpy(svrArgs.argv[svrArgs.argc++], "-d");
-        strcpy(svrArgs.argv[svrArgs.argc++], "-n");
-        strcpy(svrArgs.argv[svrArgs.argc++], "-c");
-        strcpy(svrArgs.argv[svrArgs.argc++], "./certs/ntru-cert.pem");
-        strcpy(svrArgs.argv[svrArgs.argc++], "-k");
-        strcpy(svrArgs.argv[svrArgs.argc++], "./certs/ntru-key.raw");
-    #endif
+#if !defined(USE_WINDOWS_API) && !defined(CYASSL_SNIFFER)
+    strcpy(svrArgs.argv[svrArgs.argc++], "-p");
+    strcpy(svrArgs.argv[svrArgs.argc++], "0");
+#endif
+#ifdef HAVE_NTRU
+    strcpy(svrArgs.argv[svrArgs.argc++], "-d");
+    strcpy(svrArgs.argv[svrArgs.argc++], "-n");
+    strcpy(svrArgs.argv[svrArgs.argc++], "-c");
+    strcpy(svrArgs.argv[svrArgs.argc++], "./certs/ntru-cert.pem");
+    strcpy(svrArgs.argv[svrArgs.argc++], "-k");
+    strcpy(svrArgs.argv[svrArgs.argc++], "./certs/ntru-key.raw");
+#endif
     /* Set the last arg later, when it is known. */
 
     args->return_code = 0;
     svrArgs.signal = args->signal;
     start_thread(server_test, &svrArgs, &serverThread);
     wait_tcp_ready(&svrArgs);
-   
+
     /* Setting the actual port number. */
     strcpy(cliArgs.argv[0], "SimpleClient");
-    #ifndef USE_WINDOWS_API
-        cliArgs.argc = NUMARGS;
-        strcpy(cliArgs.argv[1], "-p");
-        snprintf(cliArgs.argv[2], sizeof(argc2c), "%d", svrArgs.signal->port);
-    #endif
+#ifndef USE_WINDOWS_API
+    cliArgs.argc = NUMARGS;
+    strcpy(cliArgs.argv[1], "-p");
+    snprintf(cliArgs.argv[2], sizeof(argc2c), "%d", svrArgs.signal->port);
+#endif
 
     client_test(&cliArgs);
     if (cliArgs.return_code != 0) {
@@ -271,7 +258,7 @@ void wait_tcp_ready(func_args* args)
 {
 #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
     pthread_mutex_lock(&args->signal->mutex);
-    
+
     if (!args->signal->ready)
         pthread_cond_wait(&args->signal->cond, &args->signal->mutex);
     args->signal->ready = 0; /* reset */
@@ -288,17 +275,6 @@ void start_thread(THREAD_FUNC fun, func_args* args, THREAD_TYPE* thread)
 #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
     pthread_create(thread, 0, fun, args);
     return;
-#elif defined(TIRTOS)
-    /* Initialize the defaults and set the parameters. */
-    Task_Params taskParams;
-    Task_Params_init(&taskParams);
-    taskParams.arg0 = (UArg)args;
-    taskParams.stackSize = 65535;
-    *thread = Task_create((Task_FuncPtr)fun, &taskParams, NULL);
-    if (*thread == NULL) {
-        printf("Failed to create new Task\n");
-    }
-    Task_yield();
 #else
     *thread = (THREAD_TYPE)_beginthreadex(0, 0, fun, args, 0, 0);
 #endif
@@ -309,14 +285,6 @@ void join_thread(THREAD_TYPE thread)
 {
 #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
     pthread_join(thread, 0);
-#elif defined(TIRTOS)
-    while(1) {
-        if (Task_getMode(thread) == Task_Mode_TERMINATED) {
-		    Task_sleep(5);
-            break;
-        }
-        Task_yield();
-    }
 #else
     int res = WaitForSingleObject((HANDLE)thread, INFINITE);
     assert(res == WAIT_OBJECT_0);
@@ -331,8 +299,8 @@ void InitTcpReady(tcp_ready* ready)
     ready->ready = 0;
     ready->port = 0;
 #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
-      pthread_mutex_init(&ready->mutex, 0);
-      pthread_cond_init(&ready->cond, 0);
+    pthread_mutex_init(&ready->mutex, 0);
+    pthread_cond_init(&ready->cond, 0);
 #endif
 }
 
@@ -355,7 +323,7 @@ void file_test(const char* file, byte* check)
     Sha256   sha256;
     byte  buf[1024];
     byte  shasum[SHA256_DIGEST_SIZE];
-   
+
     ret = InitSha256(&sha256);
     if (ret != 0) {
         printf("Can't InitSha256 %d\n", ret);
@@ -372,7 +340,7 @@ void file_test(const char* file, byte* check)
             return;
         }
     }
-    
+
     ret = Sha256Final(&sha256, shasum);
     if (ret != 0) {
         printf("Can't Sha256Final %d\n", ret);
@@ -381,9 +349,9 @@ void file_test(const char* file, byte* check)
 
     memcpy(check, shasum, sizeof(shasum));
 
-    for(j = 0; j < SHA256_DIGEST_SIZE; ++j ) 
+    for(j = 0; j < SHA256_DIGEST_SIZE; ++j )
         printf( "%02x", shasum[j] );
-   
+
     printf("  %s\n", file);
 
     fclose(f);
@@ -408,9 +376,9 @@ int main(int argc, char** argv)
         ChangeDirBack(1);
     else if (CurrentDir("Debug") || CurrentDir("Release"))
         ChangeDirBack(3);          /* Xcode->Preferences->Locations->Locations*/
-                                   /* Derived Data Advanced -> Custom  */
-                                   /* Relative to Workspace, Build/Products */
-                                   /* Debug or Release */
+    /* Derived Data Advanced -> Custom  */
+    /* Relative to Workspace, Build/Products */
+    /* Debug or Release */
 
     ctaocrypt_test(&server_args);
     if (server_args.return_code != 0) return server_args.return_code;
@@ -421,4 +389,53 @@ int main(int argc, char** argv)
 
 
 #endif /* SINGLE_THREADED */
+
+#ifdef USE_WINDOWS_API
+
+#include <io.h>
+
+#endif
+
+int mymkstemp( char* template ) {
+
+    int err;
+
+    /* Attempt to find a unique filename: */
+#ifndef USE_WINDOWS_API
+
+    err = mkstemp(template);
+    if (err < 0) {
+        printf("Problem creating the template");
+        return -1;
+    }
+    else 
+    {
+        printf("Unique filename is %s\n", template);
+        return err;
+    }
+#else 
+    FILE* file;
+    int fd = -1;
+
+    /* Get the size of the string and add one for the null terminator.*/
+    int size = 10;
+
+    err = _mktemp_s(template, size);
+
+    if (err != 0)
+        printf("Problem creating the template");
+    else
+    {
+        if (fopen_s(&file, template, "w") == 0)
+            printf("Unique filename is %s\n", template);
+        else
+            printf("Cannot open %s\n", template);
+
+        /* close(fd); */
+    }
+
+    fd = _fileno(file);
+    return fd;
+#endif
+}
 
