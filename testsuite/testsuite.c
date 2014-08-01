@@ -52,11 +52,9 @@ enum {
     NUMARGS = 3
 };
 
-char nameBuff[32];
-int filedes = -1;
-
 int myoptind = 0;
 char* myoptarg = NULL;
+
 int main(int argc, char** argv)
 {
 
@@ -111,7 +109,6 @@ int main(int argc, char** argv)
     {
         func_args echo_args;
         char* myArgv[NUMARGS];
-        int fd;
 
         char argc0[32];
         char argc1[32];
@@ -125,9 +122,7 @@ int main(int argc, char** argv)
         echo_args.argv = myArgv;
 
         /* Change outputName XXXXXX's to unique file name */
-        if ( (fd = mymkstemp(outputName)) == -1) {
-            return EXIT_FAILURE;
-        }
+        mymkstemp(outputName);
 
         strcpy(echo_args.argv[0], "echoclient");
         strcpy(echo_args.argv[1], "input");
@@ -404,23 +399,18 @@ int mymkstemp( char* template ) {
 #ifndef USE_WINDOWS_API
 
     err = mkstemp(template);
-    if (err < 0) {
+    if (err < 0) 
         printf("Problem creating the template");
-        return -1;
-    }
     else 
-    {
         printf("Unique filename is %s\n", template);
-        return err;
-    }
+    
+    close(err);
 #else 
     FILE* file;
     int fd = -1;
 
     /* Get the size of the string and add one for the null terminator.*/
-    int size = 10;
-
-    err = _mktemp_s(template, size);
+    err = _mktemp_s(template, strlen(template) + 1);
 
     if (err != 0)
         printf("Problem creating the template");
@@ -431,11 +421,11 @@ int mymkstemp( char* template ) {
         else
             printf("Cannot open %s\n", template);
 
-        /* close(fd); */
+        close(file);
     }
 
-    fd = _fileno(file);
-    return fd;
+    err = _fileno(file);
 #endif
+    return err;
 }
 
