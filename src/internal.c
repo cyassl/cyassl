@@ -1752,6 +1752,9 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->MacEncryptCtx    = NULL;
     ssl->DecryptVerifyCtx = NULL;
 #endif
+#ifdef HAVE_FUZZER
+    ssl->fuzzerCb         = NULL;
+#endif
 #ifdef HAVE_PK_CALLBACKS
     #ifdef HAVE_ECC
         ssl->EccSignCtx   = NULL;
@@ -2527,6 +2530,10 @@ static int HashOutput(CYASSL* ssl, const byte* output, int sz, int ivSz)
     const byte* adj = output + RECORD_HEADER_SZ + ivSz;
     sz -= RECORD_HEADER_SZ;
     
+#ifdef HAVE_FUZZER
+    if (ssl->fuzzerCb)
+        ssl->fuzzerCb(output, sz, FUZZ_HASH, ssl->ctx);
+#endif
 #ifdef CYASSL_DTLS
     if (ssl->options.dtls) {
         adj += DTLS_RECORD_EXTRA;
@@ -2952,6 +2959,11 @@ static int GetRecordHeader(CYASSL* ssl, const byte* input, word32* inOutIdx,
                            RecordLayerHeader* rh, word16 *size)
 {
     if (!ssl->options.dtls) {
+#ifdef HAVE_FUZZER
+        if (ssl->fuzzerCb)
+            ssl->fuzzerCb(input + *inOutIdx, RECORD_HEADER_SZ, FUZZ_HEAD,
+                    ssl->ctx);
+#endif
         XMEMCPY(rh, input + *inOutIdx, RECORD_HEADER_SZ);
         *inOutIdx += RECORD_HEADER_SZ;
         ato16(rh->length, size);
@@ -2967,6 +2979,12 @@ static int GetRecordHeader(CYASSL* ssl, const byte* input, word32* inOutIdx,
         *inOutIdx += 4;  /* advance past rest of seq */
         ato16(input + *inOutIdx, size);
         *inOutIdx += LENGTH_SZ;
+#ifdef HAVE_FUZZER
+        if (ssl->fuzzerCb)
+            ssl->fuzzerCb(input + *inOutIdx - LENGTH_SZ - 8 - ENUM_LEN -
+                      VERSION_SZ, ENUM_LEN + VERSION_SZ + 8 + LENGTH_SZ,
+                      FUZZ_HEAD, ssl->ctx);
+#endif
 #endif
     }
 
@@ -5113,6 +5131,11 @@ static INLINE int Encrypt(CYASSL* ssl, byte* out, const byte* input, word16 sz)
         return ENCRYPT_ERROR;
     }
 
+#ifdef HAVE_FUZZER
+    if (ssl->fuzzerCb)
+        ssl->fuzzerCb(input, sz, FUZZ_ENCRYPT, ssl->ctx);
+#endif
+
     switch (ssl->specs.bulk_cipher_algorithm) {
         #ifdef BUILD_ARC4
             case cyassl_rc4:
@@ -6390,6 +6413,11 @@ static int SSL_hmac(CYASSL* ssl, byte* digest, const byte* in, word32 sz,
     byte conLen[ENUM_LEN + LENGTH_SZ];     /* content & length */
     const byte* macSecret = CyaSSL_GetMacSecret(ssl, verify);
     
+#ifdef HAVE_FUZZER
+    if (ssl->fuzzerCb)
+        ssl->fuzzerCb(in, sz, FUZZ_HMAC, ssl->ctx);
+#endif
+
     XMEMSET(seq, 0, SEQ_SZ);
     conLen[0] = (byte)content;
     c16toa((word16)sz, &conLen[ENUM_LEN]);
@@ -10543,6 +10571,11 @@ static void PickHashSigAlgo(CYASSL* ssl,
             /* Signtaure length will be written later, when we're sure what it
                is */
 
+#ifdef HAVE_FUZZER
+    if (ssl->fuzzerCb)
+        ssl->fuzzerCb(output + preSigIdx, preSigSz, FUZZ_SIGNATURE, ssl->ctx);
+#endif
+
             /* do signature */
             {
 #ifndef NO_OLD_TLS
@@ -10894,6 +10927,11 @@ static void PickHashSigAlgo(CYASSL* ssl,
             /*    size */
             c16toa((word16)sigSz, output + idx);
             idx += LENGTH_SZ;
+
+#ifdef HAVE_FUZZER
+    if (ssl->fuzzerCb)
+        ssl->fuzzerCb(output + preSigIdx, preSigSz, FUZZ_SIGNATURE, ssl->ctx);
+#endif
 
             /* do signature */
             {
