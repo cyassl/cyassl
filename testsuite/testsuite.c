@@ -122,7 +122,8 @@ int main(int argc, char** argv)
         echo_args.argv = myArgv;
 
         /* Change outputName XXXXXX's to unique file name */
-        mymkstemp(outputName);
+        if (mymkstemp(outputName) < 0)
+            return EXIT_FAILURE;
 
         strcpy(echo_args.argv[0], "echoclient");
         strcpy(echo_args.argv[1], "input");
@@ -399,33 +400,35 @@ int mymkstemp( char* template ) {
 #ifndef USE_WINDOWS_API
 
     err = mkstemp(template);
-    if (err < 0) 
+    if (err < 0) {
         printf("Problem creating the template");
-    else 
+        close(err);
+        return -1;
+    }
+    else {
         printf("Unique filename is %s\n", template);
-    
-    close(err);
+        close(err);
+        return 0;
+    }
 #else 
     FILE* file;
-    int fd = -1;
 
     /* Get the size of the string and add one for the null terminator.*/
     err = _mktemp_s(template, strlen(template) + 1);
 
-    if (err != 0)
+    if (err != 0) {
         printf("Problem creating the template");
+        return -1;
+    }
     else
     {
         if (fopen_s(&file, template, "w") == 0)
             printf("Unique filename is %s\n", template);
         else
             printf("Cannot open %s\n", template);
-
         close(file);
+        return err;
     }
-
-    err = _fileno(file);
 #endif
-    return err;
 }
 
