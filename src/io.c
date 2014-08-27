@@ -587,7 +587,11 @@ static int tcp_connect(SOCKET_T* sockfd, const char* ip, word16 port)
     #endif /* HAVE_GETADDRINFO */
 
     *sockfd = socket(addr.ss_family, SOCK_STREAM, 0);
+    #ifdef USE_WINDOWS_API
+    if (*sockfd == INVALID_SOCKET) {
+    #else /* USE_WINDOWS_API */
     if (*sockfd < 0) {
+    #endif /* USE_WINDOWS_API */
         CYASSL_MSG("bad socket fd, out of fds?");
         return -1;
     }
