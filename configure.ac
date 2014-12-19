@@ -322,9 +322,9 @@ AC_ARG_ENABLE([sniffer],
        AS_IF([ test "x$enableval" = "xyes" ],[ AC_CHECK_HEADERS([pcap/pcap.h],[ 
            ENABLED_SNIFFTEST=yes 
    ],[ AC_MSG_WARN([cannot enable sniffer test without having libpcap available.]) ]) ])
-   ],[
-       ENABLED_SNIFFER=no
-   ])
+   ],
+   [ ENABLED_SNIFFER=no ]
+   )
 
 AM_CONDITIONAL([BUILD_SNIFFER],   [ test "x$ENABLED_SNIFFER"   = "xyes" ])
 AM_CONDITIONAL([BUILD_SNIFFTEST], [ test "x$ENABLED_SNIFFTEST" = "xyes" ])
@@ -1152,6 +1152,11 @@ AC_ARG_ENABLE([filesystem],
     [ ENABLED_FILESYSTEM=$enableval ],
     [ ENABLED_FILESYSTEM=yes ]
     )
+
+if test "$ENABLED_FILESYSTEM" = "no" && test "$ENABLED_SNIFFER" = "yes"
+    then
+        AC_MSG_ERROR([cannot enable sniffer without enabling filesystem.])
+fi
 
 if test "$ENABLED_FILESYSTEM" = "no"
 then
