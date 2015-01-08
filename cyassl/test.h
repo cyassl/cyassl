@@ -10,6 +10,7 @@
 #include <cyassl/ssl.h>
 #include <cyassl/ctaocrypt/types.h>
 #include <cyassl/ctaocrypt/error-crypt.h>
+#include <cyassl/ctaocrypt/random.h>
 
 #ifdef ATOMIC_USER
     #include <cyassl/ctaocrypt/aes.h>
@@ -17,7 +18,6 @@
     #include <cyassl/ctaocrypt/hmac.h>
 #endif
 #ifdef HAVE_PK_CALLBACKS
-    #include <cyassl/ctaocrypt/random.h>
     #include <cyassl/ctaocrypt/asn.h>
     #ifdef HAVE_ECC
         #include <cyassl/ctaocrypt/ecc.h>
@@ -1790,6 +1790,30 @@ static INLINE char* strsep(char **stringp, const char *delim)
 }
 
 #endif /* __hpux__ */
+
+static INLINE const char* mymktemp(char *tempfn, int len, int num)
+{
+    int x;
+    int ret;
+    static const char alphanum[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                   "abcdefghijklmnopqrstuvwxyz";
+    RNG rng;
+    byte out[32];
+    ret = InitRng(&rng);
+
+    int size = len - 1;
+
+    /* Create unique string for trail of filename */
+    for (x = size; x > size - num; x--) {
+        ret = RNG_GenerateBlock(&rng, out, sizeof(out));
+        if (ret != 0)
+            return "Unexpected RNG result";
+        tempfn[x] = alphanum[(int)(*out) % (sizeof(alphanum) - 1)];
+    }
+    tempfn[len] = '\0';
+
+    return tempfn;
+}
 
 #endif /* CyaSSL_TEST_H */
 

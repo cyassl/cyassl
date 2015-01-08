@@ -47,11 +47,7 @@ enum {
     NUMARGS = 3
 };
 
-#ifndef USE_WINDOWS_API
-    static const char outputName[] = "/tmp/output";
-#else
-    static const char outputName[] = "output";
-#endif
+static const char *outputName;
 
 
 int myoptind = 0;
@@ -72,6 +68,14 @@ char* myoptarg = NULL;
 
 int testsuite_test(int argc, char** argv)
 {
+#ifndef USE_WINDOWS_API
+    char tempName[] = "/tmp/output-XXXXXX";
+    outputName = mymktemp(tempName, 18, 6);
+#else
+    char tempName[] = "fnXXXXXX";
+    outputName = mymktemp(tempName, 8, 6);
+#endif
+
     func_args server_args;
 
     tcp_ready ready;
@@ -139,7 +143,6 @@ int testsuite_test(int argc, char** argv)
         strcpy(echo_args.argv[0], "echoclient");
         strcpy(echo_args.argv[1], "input");
         strcpy(echo_args.argv[2], outputName);
-        remove(outputName);
 
         /* Share the signal, it has the new port number in it. */
         echo_args.signal = server_args.signal;
@@ -180,6 +183,7 @@ int testsuite_test(int argc, char** argv)
             return EXIT_FAILURE;
     }
 
+    remove(outputName);
     CyaSSL_Cleanup();
     FreeTcpReady(&ready);
 
