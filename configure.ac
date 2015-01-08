@@ -6,7 +6,7 @@
 #
 #
 
-AC_INIT([cyassl],[3.2.6],[https://github.com/cyassl/cyassl/issues],[cyassl],[http://www.wolfssl.com])
+AC_INIT([cyassl],[3.3.0],[https://github.com/cyassl/cyassl/issues],[cyassl],[http://www.wolfssl.com])
 
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -39,7 +39,7 @@ CYASSL_LIBRARY_VERSION=6:0:1
 #               |        |     |
 #               |        |     +- increment if interfaces have been added
 #               |        |        set to zero if interfaces have been removed
-#                        |        or changed
+#               |        |        or changed
 #               |        +- increment if source code has changed
 #               |           set to zero if current is incremented
 #               +- increment if interfaces have been added, removed or changed
@@ -807,6 +807,24 @@ fi
 AM_CONDITIONAL([BUILD_DH], [test "x$ENABLED_DH" = "xyes"])
 
 
+# Anonymous
+AC_ARG_ENABLE([anon],
+    [AS_HELP_STRING([--enable-anon],[Enable Anonymous (default: disabled)])],
+    [ ENABLED_ANON=$enableval ],
+    [ ENABLED_ANON=no ]
+    )
+
+
+if test "x$ENABLED_ANON" = "xyes"
+then
+    if test "x$ENABLED_DH" != "xyes"
+    then
+        AC_MSG_ERROR([Anonymous suite requires DH.])
+    fi
+    AM_CFLAGS="$AM_CFLAGS -DHAVE_ANON"
+fi
+
+
 # ASN
 # turn off asn, which means no certs, no rsa, no dh, no dsa, no ecc,
 # and no big int, use this to disable all public key stuff
@@ -1128,9 +1146,9 @@ AM_CONDITIONAL([BUILD_FIPS], [test "x$ENABLED_FIPS" = "xyes"])
 
 # Hash DRBG
 AC_ARG_ENABLE([hashdrbg],
-    [  --enable-hashdrbg       Enable Hash DRBG support (default: disabled)],
+    [  --enable-hashdrbg       Enable Hash DRBG support (default: enabled)],
     [ ENABLED_HASHDRBG=$enableval ],
-    [ ENABLED_HASHDRBG=no ]
+    [ ENABLED_HASHDRBG=yes ]
     )
 
 if test "x$ENABLED_HASHDRBG" = "xyes"
@@ -1881,6 +1899,7 @@ echo "   * ECC:                       $ENABLED_ECC"
 echo "   * FPECC:                     $ENABLED_FPECC"
 echo "   * ECC_ENCRYPT:               $ENABLED_ECC_ENCRYPT"
 echo "   * ASN:                       $ENABLED_ASN"
+echo "   * Anonymous cipher:          $ENABLED_ANON"
 echo "   * CODING:                    $ENABLED_CODING"
 echo "   * MEMORY:                    $ENABLED_MEMORY"
 echo "   * I/O POOL:                  $ENABLED_IOPOOL"

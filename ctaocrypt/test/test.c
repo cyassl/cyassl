@@ -3870,6 +3870,10 @@ int rsa_test(void)
 #endif
     free(tmp);
 
+#if defined(HAVE_HASHDRBG) || defined(NO_RC4)
+    FreeRng(&rng);
+#endif
+
     return 0;
 }
 
@@ -3949,6 +3953,10 @@ int dh_test(void)
 
     FreeDhKey(&key);
     FreeDhKey(&key2);
+
+#if defined(HAVE_HASHDRBG) || defined(NO_RC4)
+    FreeRng(&rng);
+#endif
 
     return 0;
 }
@@ -4700,6 +4708,10 @@ int ecc_test(void)
     ecc_free(&userB);
     ecc_free(&userA);
 
+#if defined(HAVE_HASHDRBG) || defined(NO_RC4)
+    FreeRng(&rng);
+#endif
+
     return 0;
 }
 
@@ -5262,6 +5274,10 @@ int pkcs7signed_test(void)
     free(keyDer);
     free(out);
     PKCS7_Free(&msg);
+
+#if defined(HAVE_HASHDRBG) || defined(NO_RC4)
+    FreeRng(&rng);
+#endif
 
     if (ret > 0)
         return 0;

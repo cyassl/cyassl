@@ -33,12 +33,14 @@ cyassl-config
 cyassl.sublime*
 fips.c
 fips_test.c
+fips
 ctaocrypt/benchmark/benchmark
 ctaocrypt/test/testctaocrypt
 examples/client/client
 examples/echoclient/echoclient
 examples/echoserver/echoserver
 examples/server/server
+server_ready
 snifftest
 output
 mcapi/test

@@ -368,6 +368,9 @@ int InitSSL_Ctx(CYASSL_CTX* ctx, CYASSL_METHOD* method)
     ctx->client_psk_cb      = 0;
     ctx->server_psk_cb      = 0;
 #endif /* NO_PSK */
+#ifdef HAVE_ANON
+    ctx->haveAnon           = 0;
+#endif /* HAVE_ANON */
 #ifdef HAVE_ECC
     ctx->eccTempKeySz       = ECDHE_SIZE;
 #endif
@@ -377,7 +380,7 @@ int InitSSL_Ctx(CYASSL_CTX* ctx, CYASSL_METHOD* method)
     ctx->userdata    = 0;
 #endif /* OPENSSL_EXTRA */
 
-    ctx->timeout = DEFAULT_TIMEOUT;
+    ctx->timeout = CYASSL_SESSION_TIMEOUT;
 
 #ifndef CYASSL_USER_IO
     ctx->CBIORecv = EmbedReceive;
@@ -626,7 +629,7 @@ void InitCipherSpecs(CipherSpecs* cs)
 }
 
 static void InitSuitesHashSigAlgo(Suites* suites, int haveECDSAsig,
-                                                                 int haveRSAsig)
+                                                  int haveRSAsig, int haveAnon)
 {
     int idx = 0;
 
@@ -657,6 +660,13 @@ static void InitSuitesHashSigAlgo(Suites* suites, int haveECDSAsig,
         #ifndef NO_SHA
             suites->hashSigAlgo[idx++] = sha_mac;
             suites->hashSigAlgo[idx++] = rsa_sa_algo;
+        #endif
+    }
+
+    if (haveAnon) {
+        #ifdef HAVE_ANON
+            suites->hashSigAlgo[idx++] = sha_mac;
+            suites->hashSigAlgo[idx++] = anonymous_sa_algo;
         #endif
     }
 
@@ -1378,7 +1388,7 @@ void InitSuites(Suites* suites, ProtocolVersion pv, byte haveRSA, byte havePSK,
 
     suites->suiteSz = idx;
 
-    InitSuitesHashSigAlgo(suites, haveECDSAsig, haveRSAsig);
+    InitSuitesHashSigAlgo(suites, haveECDSAsig, haveRSAsig, 0);
 }
 
 
@@ -1486,6 +1496,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     int  ret;
     byte haveRSA = 0;
     byte havePSK = 0;
+    byte haveAnon = 0;
 
     ssl->ctx     = ctx; /* only for passing to calls, options could change */
     ssl->version = ctx->method->version;
@@ -1580,29 +1591,8 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->keys.dtls_state.nextSeq = 0;
 #endif
 
-#ifndef NO_OLD_TLS
-#ifndef NO_MD5
-    InitMd5(&ssl->hashMd5);
-#endif
-#ifndef NO_SHA
-    ret = InitSha(&ssl->hashSha);
-    if (ret != 0) {
-        return ret;
-    }
-#endif
-#endif
-#ifndef NO_SHA256
-    ret = InitSha256(&ssl->hashSha256);
-    if (ret != 0) {
-        return ret;
-    }
-#endif
-#ifdef CYASSL_SHA384
-    ret = InitSha384(&ssl->hashSha384);
-    if (ret != 0) {
-        return ret;
-    }
-#endif
+    XMEMSET(&ssl->msgsReceived, 0, sizeof(ssl->msgsReceived));
+
 #ifndef NO_RSA
     ssl->peerRsaKey = NULL;
     ssl->peerRsaKeyPresent = 0;
@@ -1628,6 +1618,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->options.havePeerCert    = 0;
     ssl->options.havePeerVerify  = 0;
     ssl->options.usingPSK_cipher = 0;
+    ssl->options.usingAnon_cipher = 0;
     ssl->options.sendAlertState = 0;
 #ifndef NO_PSK
     havePSK = ctx->havePSK;
@@ -1635,6 +1626,10 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->options.client_psk_cb = ctx->client_psk_cb;
     ssl->options.server_psk_cb = ctx->server_psk_cb;
 #endif /* NO_PSK */
+#ifdef HAVE_ANON
+    haveAnon = ctx->haveAnon;
+    ssl->options.haveAnon = ctx->haveAnon;
+#endif
 
     ssl->options.serverState = NULL_STATE;
     ssl->options.clientState = NULL_STATE;
@@ -1686,7 +1681,6 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->options.quietShutdown = ctx->quietShutdown;
     ssl->options.certOnly = 0;
     ssl->options.groupMessages = ctx->groupMessages;
-    ssl->options.gotChangeCipher = 0;
     ssl->options.usingNonblock = 0;
     ssl->options.saveArrays = 0;
 #ifdef HAVE_POLY1305
@@ -1800,6 +1794,30 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
 
     /* all done with init, now can return errors, call other stuff */
 
+#ifndef NO_OLD_TLS
+#ifndef NO_MD5
+    InitMd5(&ssl->hashMd5);
+#endif
+#ifndef NO_SHA
+    ret = InitSha(&ssl->hashSha);
+    if (ret != 0) {
+        return ret;
+    }
+#endif
+#endif
+#ifndef NO_SHA256
+    ret = InitSha256(&ssl->hashSha256);
+    if (ret != 0) {
+        return ret;
+    }
+#endif
+#ifdef CYASSL_SHA384
+    ret = InitSha384(&ssl->hashSha384);
+    if (ret != 0) {
+        return ret;
+    }
+#endif
+
     /* increment CTX reference count */
     if (LockMutex(&ctx->countMutex) != 0) {
         CYASSL_MSG("Couldn't lock CTX count mutex");
@@ -1864,8 +1882,8 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     if (ret != 0) return ret;
 #endif
 #ifndef NO_CERTS
-    /* make sure server has cert and key unless using PSK */
-    if (ssl->options.side == CYASSL_SERVER_END && !havePSK)
+    /* make sure server has cert and key unless using PSK or Anon */
+    if (ssl->options.side == CYASSL_SERVER_END && !havePSK && !haveAnon)
         if (!ssl->buffers.certificate.buffer || !ssl->buffers.key.buffer) {
             CYASSL_MSG("Server missing certificate and/or private key");
             return NO_PRIVATE_KEY;
@@ -3105,11 +3123,14 @@ static int GetRecordHeader(CYASSL* ssl, const byte* input, word32* inOutIdx,
 
 
 static int GetHandShakeHeader(CYASSL* ssl, const byte* input, word32* inOutIdx,
-                              byte *type, word32 *size)
+                              byte *type, word32 *size, word32 totalSz)
 {
     const byte *ptr = input + *inOutIdx;
     (void)ssl;
+
     *inOutIdx += HANDSHAKE_HEADER_SZ;
+    if (*inOutIdx > totalSz)
+        return BUFFER_E;
 
     *type = ptr[0];
     c24to32(&ptr[1], size);
@@ -3120,12 +3141,15 @@ static int GetHandShakeHeader(CYASSL* ssl, const byte* input, word32* inOutIdx,
 
 #ifdef CYASSL_DTLS
 static int GetDtlsHandShakeHeader(CYASSL* ssl, const byte* input,
-                                    word32* inOutIdx, byte *type, word32 *size,
-                                    word32 *fragOffset, word32 *fragSz)
+                                  word32* inOutIdx, byte *type, word32 *size,
+                                  word32 *fragOffset, word32 *fragSz,
+                                  word32 totalSz)
 {
     word32 idx = *inOutIdx;
 
     *inOutIdx += HANDSHAKE_HEADER_SZ + DTLS_HANDSHAKE_EXTRA;
+    if (*inOutIdx > totalSz)
+        return BUFFER_E;
 
     *type = input[idx++];
     c24to32(input + idx, size);
@@ -3777,6 +3801,12 @@ static int BuildFinished(CYASSL* ssl, Hashes* hashes, const byte* sender)
                 return 1;
             break;
 #endif
+#ifdef HAVE_ANON
+        case TLS_DH_anon_WITH_AES_128_CBC_SHA :
+            if (requirement == REQUIRES_DHE)
+                return 1;
+            break;
+#endif
 
         default:
             CYASSL_MSG("Unsupported cipher suite, CipherRequires");
@@ -4393,7 +4423,7 @@ static int DoCertificate(CYASSL* ssl, byte* input, word32* inOutIdx,
                         #ifdef HAVE_PK_CALLBACKS
                             #ifndef NO_RSA
                                 ssl->buffers.peerRsaKey.buffer =
-                                       XMALLOC(dCert->pubKeySize,
+                                       (byte*)XMALLOC(dCert->pubKeySize,
                                                ssl->heap, DYNAMIC_TYPE_RSA);
                                 if (ssl->buffers.peerRsaKey.buffer == NULL)
                                     ret = MEMORY_ERROR;
@@ -4441,7 +4471,7 @@ static int DoCertificate(CYASSL* ssl, byte* input, word32* inOutIdx,
                         #ifdef HAVE_PK_CALLBACKS
                             #ifdef HAVE_ECC
                                 ssl->buffers.peerEccDsaKey.buffer =
-                                       XMALLOC(dCert->pubKeySize,
+                                       (byte*)XMALLOC(dCert->pubKeySize,
                                                ssl->heap, DYNAMIC_TYPE_ECC);
                                 if (ssl->buffers.peerEccDsaKey.buffer == NULL)
                                     ret = MEMORY_ERROR;
@@ -4615,11 +4645,6 @@ int DoFinished(CYASSL* ssl, const byte* input, word32* inOutIdx, word32 size,
     if (finishedSz != size)
         return BUFFER_ERROR;
 
-    if (ssl->options.gotChangeCipher == 0) {
-        CYASSL_MSG("Finished received from peer before change cipher");
-        return NO_CHANGE_CIPHER_E;
-    }
-
     /* check against totalSz */
     if (*inOutIdx + size + ssl->keys.padSz > totalSz)
         return BUFFER_E;
@@ -4686,6 +4711,231 @@ int DoFinished(CYASSL* ssl, const byte* input, word32* inOutIdx, word32 size,
 }
 
 
+/* Make sure no duplicates, no fast forward, or other problems; 0 on success */
+static int SanityCheckMsgReceived(CYASSL* ssl, byte type)
+{
+    /* verify not a duplicate, mark received, check state */
+    switch (type) {
+
+#ifndef NO_CYASSL_CLIENT
+        case hello_request:
+            if (ssl->msgsReceived.got_hello_request) {
+                CYASSL_MSG("Duplicate HelloRequest received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_hello_request = 1;
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_SERVER
+        case client_hello:
+            if (ssl->msgsReceived.got_client_hello) {
+                CYASSL_MSG("Duplicate ClientHello received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_client_hello = 1;
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_CLIENT
+        case server_hello:
+            if (ssl->msgsReceived.got_server_hello) {
+                CYASSL_MSG("Duplicate ServerHello received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_server_hello = 1;
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_CLIENT
+        case hello_verify_request:
+            if (ssl->msgsReceived.got_hello_verify_request) {
+                CYASSL_MSG("Duplicate HelloVerifyRequest received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_hello_verify_request = 1;
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_CLIENT
+        case session_ticket:
+            if (ssl->msgsReceived.got_session_ticket) {
+                CYASSL_MSG("Duplicate SessionTicket received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_session_ticket = 1;
+
+            break;
+#endif
+
+        case certificate:
+            if (ssl->msgsReceived.got_certificate) {
+                CYASSL_MSG("Duplicate Certificate received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_certificate = 1;
+
+#ifndef NO_CYASSL_CLIENT
+            if (ssl->options.side == CYASSL_CLIENT_END) {
+                if ( ssl->msgsReceived.got_server_hello == 0) {
+                    CYASSL_MSG("No ServerHello before Cert");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+#endif
+#ifndef NO_CYASSL_SERVER
+            if (ssl->options.side == CYASSL_SERVER_END) {
+                if ( ssl->msgsReceived.got_client_hello == 0) {
+                    CYASSL_MSG("No ClientHello before Cert");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+#endif
+            break;
+
+#ifndef NO_CYASSL_CLIENT
+        case server_key_exchange:
+            if (ssl->msgsReceived.got_server_key_exchange) {
+                CYASSL_MSG("Duplicate ServerKeyExchange received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_server_key_exchange = 1;
+
+            if ( ssl->msgsReceived.got_server_hello == 0) {
+                CYASSL_MSG("No ServerHello before Cert");
+                return OUT_OF_ORDER_E;
+            }
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_CLIENT
+        case certificate_request:
+            if (ssl->msgsReceived.got_certificate_request) {
+                CYASSL_MSG("Duplicate CertificateRequest received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_certificate_request = 1;
+
+            break;
+#endif
+
+#ifndef NO_CYASSL_CLIENT
+        case server_hello_done:
+            if (ssl->msgsReceived.got_server_hello_done) {
+                CYASSL_MSG("Duplicate ServerHelloDone received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_server_hello_done = 1;
+
+            if (ssl->msgsReceived.got_certificate == 0) {
+                if (ssl->specs.kea == psk_kea ||
+                    ssl->specs.kea == dhe_psk_kea ||
+                    ssl->options.usingAnon_cipher) {
+                    CYASSL_MSG("No Cert required");
+                } else {
+                    CYASSL_MSG("No Certificate before ServerHelloDone");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+            if (ssl->msgsReceived.got_server_key_exchange == 0) {
+                if (ssl->specs.static_ecdh == 1 ||
+                    ssl->specs.kea == rsa_kea ||
+                    ssl->specs.kea == ntru_kea) {
+                    CYASSL_MSG("No KeyExchange required");
+                } else {
+                    CYASSL_MSG("No ServerKeyExchange before ServerDone");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+            break;
+#endif
+
+#ifndef NO_CYASSL_SERVER
+        case certificate_verify:
+            if (ssl->msgsReceived.got_certificate_verify) {
+                CYASSL_MSG("Duplicate CertificateVerify received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_certificate_verify = 1;
+
+            if ( ssl->msgsReceived.got_certificate == 0) {
+                CYASSL_MSG("No Cert before CertVerify");
+                return OUT_OF_ORDER_E;
+            }
+            break;
+#endif
+
+#ifndef NO_CYASSL_SERVER
+        case client_key_exchange:
+            if (ssl->msgsReceived.got_client_key_exchange) {
+                CYASSL_MSG("Duplicate ClientKeyExchange received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_client_key_exchange = 1;
+
+            if (ssl->msgsReceived.got_client_hello == 0) {
+                CYASSL_MSG("No ClientHello before ClientKeyExchange");
+                return OUT_OF_ORDER_E;
+            }
+            break;
+#endif
+
+        case finished:
+            if (ssl->msgsReceived.got_finished) {
+                CYASSL_MSG("Duplicate Finished received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_finished = 1;
+
+            if (ssl->msgsReceived.got_change_cipher == 0) {
+                CYASSL_MSG("Finished received before ChangeCipher");
+                return NO_CHANGE_CIPHER_E;
+            }
+
+            break;
+
+        case change_cipher_hs:
+            if (ssl->msgsReceived.got_change_cipher) {
+                CYASSL_MSG("Duplicate ChangeCipher received");
+                return DUPLICATE_MSG_E;
+            }
+            ssl->msgsReceived.got_change_cipher = 1;
+
+#ifndef NO_CYASSL_CLIENT
+            if (ssl->options.side == CYASSL_CLIENT_END) {
+                if (!ssl->options.resuming &&
+                                 ssl->msgsReceived.got_server_hello_done == 0) {
+                    CYASSL_MSG("No ServerHelloDone before ChangeCipher");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+#endif
+#ifndef NO_CYASSL_SERVER
+            if (ssl->options.side == CYASSL_SERVER_END) {
+                if (!ssl->options.resuming &&
+                               ssl->msgsReceived.got_client_key_exchange == 0) {
+                    CYASSL_MSG("No ClientKeyExchange before ChangeCipher");
+                    return OUT_OF_ORDER_E;
+                }
+            }
+#endif
+
+            break;
+
+        default:
+            CYASSL_MSG("Unknown message type");
+            return SANITY_MSG_E;
+    }
+
+    return 0;
+}
+
+
 static int DoHandShakeMsgType(CYASSL* ssl, byte* input, word32* inOutIdx,
                           byte type, word32 size, word32 totalSz)
 {
@@ -4697,6 +4947,12 @@ static int DoHandShakeMsgType(CYASSL* ssl, byte* input, word32* inOutIdx,
     /* make sure can read the message */
     if (*inOutIdx + size > totalSz)
         return INCOMPLETE_DATA;
+
+    /* sanity check msg received */
+    if ( (ret = SanityCheckMsgReceived(ssl, type)) != 0) {
+        CYASSL_MSG("Sanity Check on handshake message type received failed");
+        return ret;
+    }
 
     /* hello_request not hashed */
     if (type != hello_request) {
@@ -4847,7 +5103,7 @@ static int DoHandShakeMsg(CYASSL* ssl, byte* input, word32* inOutIdx,
 
     CYASSL_ENTER("DoHandShakeMsg()");
 
-    if (GetHandShakeHeader(ssl, input, inOutIdx, &type, &size) != 0)
+    if (GetHandShakeHeader(ssl, input, inOutIdx, &type, &size, totalSz) != 0)
         return PARSE_ERROR;
 
     ret = DoHandShakeMsgType(ssl, input, inOutIdx, type, size, totalSz);
@@ -4955,7 +5211,7 @@ static int DoDtlsHandShakeMsg(CYASSL* ssl, byte* input, word32* inOutIdx,
 
     CYASSL_ENTER("DoDtlsHandShakeMsg()");
     if (GetDtlsHandShakeHeader(ssl, input, inOutIdx, &type,
-                                            &size, &fragOffset, &fragSz) != 0)
+                               &size, &fragOffset, &fragSz, totalSz) != 0)
         return PARSE_ERROR;
 
     if (*inOutIdx + fragSz > totalSz)
@@ -6490,7 +6746,6 @@ int ProcessReply(CYASSL* ssl)
                     break;
 
                 case change_cipher_spec:
-                    ssl->options.gotChangeCipher = 1;
                     CYASSL_MSG("got CHANGE CIPHER SPEC");
                     #ifdef CYASSL_CALLBACKS
                         if (ssl->hsInfoOn)
@@ -6504,6 +6759,10 @@ int ProcessReply(CYASSL* ssl)
                             AddLateRecordHeader(&ssl->curRL, &ssl->timeoutInfo);
                         }
                     #endif
+
+                    ret = SanityCheckMsgReceived(ssl, change_cipher_hs);
+                    if (ret != 0)
+                        return ret;
 
 #ifdef HAVE_SESSION_TICKET
                     if (ssl->options.side == CYASSL_CLIENT_END &&
@@ -6908,6 +7167,9 @@ static int BuildMessage(CYASSL* ssl, byte* output, int outSz,
             ivSz = blockSz;
             sz  += ivSz;
 
+            if (ivSz > (word32)sizeof(iv))
+                return BUFFER_E;
+
             ret = RNG_GenerateBlock(ssl->rng, iv, ivSz);
             if (ret != 0)
                 return ret;
@@ -7142,7 +7404,8 @@ int SendCertificate(CYASSL* ssl)
     word32 certSz, listSz;
     byte*  output = 0;
 
-    if (ssl->options.usingPSK_cipher) return 0;  /* not needed */
+    if (ssl->options.usingPSK_cipher || ssl->options.usingAnon_cipher)
+        return 0;  /* not needed */
 
     if (ssl->options.sendVerify == SEND_BLANK_CERT) {
         certSz = 0;
@@ -7260,7 +7523,8 @@ int SendCertificateRequest(CYASSL* ssl)
     if (IsAtLeastTLSv1_2(ssl))
         reqSz += LENGTH_SZ + ssl->suites->hashSigAlgoSz;
 
-    if (ssl->options.usingPSK_cipher) return 0;  /* not needed */
+    if (ssl->options.usingPSK_cipher || ssl->options.usingAnon_cipher)
+        return 0;  /* not needed */
 
     sendSz = RECORD_HEADER_SZ + HANDSHAKE_HEADER_SZ + reqSz;
 
@@ -7898,6 +8162,12 @@ const char* CyaSSL_ERR_reason_error_string(unsigned long e)
     case NO_CHANGE_CIPHER_E:
         return "Finished received from peer before Change Cipher Error";
 
+    case SANITY_MSG_E:
+        return "Sanity Check on message order Error";
+
+    case DUPLICATE_MSG_E:
+        return "Duplicate HandShake message Error";
+
     default :
         return "unknown error number";
     }
@@ -8294,6 +8564,10 @@ static const char* const cipher_names[] =
     "DHE-RSA-CHACHA20-POLY1305",
 #endif
 
+#ifdef BUILD_TLS_DH_anon_WITH_AES_128_CBC_SHA
+    "ADH-AES128-SHA",
+#endif
+
 #ifdef HAVE_RENEGOTIATION_INDICATION
     "RENEGOTIATION-INFO",
 #endif
@@ -8684,6 +8958,10 @@ static int cipher_name_idx[] =
     TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 #endif
 
+#ifdef BUILD_TLS_DH_anon_WITH_AES_128_CBC_SHA
+    TLS_DH_anon_WITH_AES_128_CBC_SHA,
+#endif
+
 #ifdef HAVE_RENEGOTIATION_INDICATION
     TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
 #endif
@@ -8719,6 +8997,7 @@ int SetCipherList(Suites* suites, const char* list)
     int       idx          = 0;
     int       haveRSAsig   = 0;
     int       haveECDSAsig = 0;
+    int       haveAnon     = 0;
     const int suiteSz      = GetCipherNamesSize();
     char*     next         = (char*)list;
 
@@ -8741,7 +9020,7 @@ int SetCipherList(Suites* suites, const char* list)
                                          : (word32)(next - current));
 
         XSTRNCPY(name, current, length);
-        name[length] = 0;
+        name[(length == sizeof(name)) ? length - 1 : length] = 0;
 
         for (i = 0; i < suiteSz; i++) {
             if (XSTRNCMP(name, cipher_names[i], sizeof(name)) == 0) {
@@ -8752,10 +9031,12 @@ int SetCipherList(Suites* suites, const char* list)
 
                 suites->suites[idx++] = (byte)cipher_name_idx[i];
 
-                /* The suites are either ECDSA, RSA, or PSK. The RSA suites
-                 * don't necessarily have RSA in the name. */
+                /* The suites are either ECDSA, RSA, PSK, or Anon. The RSA
+                 * suites don't necessarily have RSA in the name. */
                 if ((haveECDSAsig == 0) && XSTRSTR(name, "ECDSA"))
                     haveECDSAsig = 1;
+                else if (XSTRSTR(name, "ADH"))
+                    haveAnon = 1;
                 else if ((haveRSAsig == 0) && (XSTRSTR(name, "PSK") == NULL))
                     haveRSAsig = 1;
 
@@ -8769,7 +9050,7 @@ int SetCipherList(Suites* suites, const char* list)
     if (ret) {
         suites->setSuites = 1;
         suites->suiteSz   = (word16)idx;
-        InitSuitesHashSigAlgo(suites, haveECDSAsig, haveRSAsig);
+        InitSuitesHashSigAlgo(suites, haveECDSAsig, haveRSAsig, haveAnon);
     }
 
     return ret;
@@ -8784,7 +9065,8 @@ static void PickHashSigAlgo(CYASSL* ssl,
     ssl->suites->sigAlgo = ssl->specs.sig_algo;
     ssl->suites->hashAlgo = sha_mac;
 
-    for (i = 0; i < hashSigAlgoSz; i += 2) {
+    /* i+1 since peek a byte ahead for type */
+    for (i = 0; (i+1) < hashSigAlgoSz; i += 2) {
         if (hashSigAlgo[i+1] == ssl->specs.sig_algo) {
             if (hashSigAlgo[i] == sha_mac) {
                 break;
@@ -9524,7 +9806,7 @@ static void PickHashSigAlgo(CYASSL* ssl,
         word16 length = 0;
         word32 begin  = *inOutIdx;
         int    ret    = 0;
-        #define ERROR_OUT(err, exit) do { ret = err; goto exit; } while(0)
+        #define ERROR_OUT(err, eLabel) do { ret = err; goto eLabel; } while(0)
 
         (void)length; /* shut up compiler warnings */
         (void)begin;
@@ -9751,8 +10033,9 @@ static void PickHashSigAlgo(CYASSL* ssl,
     #endif /* !NO_DH || !NO_PSK */
 
     #if !defined(NO_DH) || defined(HAVE_ECC)
-    if (ssl->specs.kea == ecc_diffie_hellman_kea ||
-        ssl->specs.kea == diffie_hellman_kea)
+    if (!ssl->options.usingAnon_cipher &&
+        (ssl->specs.kea == ecc_diffie_hellman_kea ||
+         ssl->specs.kea == diffie_hellman_kea))
     {
 #ifndef NO_OLD_TLS
 #ifdef CYASSL_SMALL_STACK
@@ -10261,7 +10544,7 @@ static void PickHashSigAlgo(CYASSL* ssl,
                     buffer  serverP   = ssl->buffers.serverDH_P;
                     buffer  serverG   = ssl->buffers.serverDH_G;
                     buffer  serverPub = ssl->buffers.serverDH_Pub;
-                #ifdef CYASSSL_SMALL_STACK
+                #ifdef CYASSL_SMALL_STACK
                     byte*   priv = NULL;
                 #else
                     byte    priv[ENCRYPT_LEN];
@@ -11138,7 +11421,7 @@ int DoSessionTicket(CYASSL* ssl,
     {
         int ret = 0;
         (void)ssl;
-        #define ERROR_OUT(err, exit) do { ret = err; goto exit; } while(0)
+        #define ERROR_OUT(err, eLabel) do { ret = err; goto eLabel; } while(0)
 
     #ifndef NO_PSK
         if (ssl->specs.kea == psk_kea)
@@ -11176,6 +11459,12 @@ int DoSessionTicket(CYASSL* ssl,
             c16toa((word16)(length - HINT_LEN_SZ), output + idx);
             idx += HINT_LEN_SZ;
             XMEMCPY(output + idx, ssl->arrays->server_hint,length -HINT_LEN_SZ);
+
+        #ifdef CYASSL_DTLS
+            if (ssl->options.dtls)
+                if ((ret = DtlsPoolSave(ssl, output, sendSz)) != 0)
+                    return ret;
+        #endif
 
             ret = HashOutput(ssl, output, sendSz, 0);
             if (ret != 0)
@@ -11297,6 +11586,12 @@ int DoSessionTicket(CYASSL* ssl,
                                   ssl->buffers.serverDH_Pub.length);
             idx += ssl->buffers.serverDH_Pub.length;
             (void)idx; /* suppress analyzer warning, and keep idx current */
+
+        #ifdef CYASSL_DTLS
+            if (ssl->options.dtls)
+                if ((ret = DtlsPoolSave(ssl, output, sendSz)) != 0)
+                    return ret;
+        #endif
 
             ret = HashOutput(ssl, output, sendSz, 0);
 
@@ -11750,6 +12045,12 @@ int DoSessionTicket(CYASSL* ssl,
 
             AddHeaders(output, length, server_key_exchange, ssl);
 
+        #ifdef CYASSL_DTLS
+            if (ssl->options.dtls)
+                if ((ret = DtlsPoolSave(ssl, output, sendSz)) != 0)
+                    goto done_a;
+        #endif
+
             if ((ret = HashOutput(ssl, output, sendSz, 0)) != 0)
                 goto done_a;
 
@@ -11820,18 +12121,19 @@ int DoSessionTicket(CYASSL* ssl,
                                         &ssl->buffers.serverDH_Pub.length);
             FreeDhKey(&dhKey);
 
-            if (ret == 0) {
+            if (ret != 0) return ret;
+
+            length = LENGTH_SZ * 3;  /* p, g, pub */
+            length += ssl->buffers.serverDH_P.length +
+                      ssl->buffers.serverDH_G.length +
+                      ssl->buffers.serverDH_Pub.length;
+
+            preSigIdx = idx;
+            preSigSz  = length;
+
+            if (!ssl->options.usingAnon_cipher) {
                 ret = InitRsaKey(&rsaKey, ssl->heap);
                 if (ret != 0) return ret;
-            }
-            if (ret == 0) {
-                length = LENGTH_SZ * 3;  /* p, g, pub */
-                length += ssl->buffers.serverDH_P.length +
-                          ssl->buffers.serverDH_G.length +
-                          ssl->buffers.serverDH_Pub.length;
-
-                preSigIdx = idx;
-                preSigSz  = length;
 
                 /* sig length */
                 length += LENGTH_SZ;
@@ -11845,14 +12147,14 @@ int DoSessionTicket(CYASSL* ssl,
                     sigSz = RsaEncryptSize(&rsaKey);
                     length += sigSz;
                 }
-            }
-            if (ret != 0) {
-                FreeRsaKey(&rsaKey);
-                return ret;
-            }
+                else {
+                    FreeRsaKey(&rsaKey);
+                    return ret;
+                }
 
-            if (IsAtLeastTLSv1_2(ssl))
-                length += HASH_SIG_SIZE;
+                if (IsAtLeastTLSv1_2(ssl))
+                    length += HASH_SIG_SIZE;
+            }
 
             sendSz = length + HANDSHAKE_HEADER_SZ + RECORD_HEADER_SZ;
 
@@ -11866,7 +12168,8 @@ int DoSessionTicket(CYASSL* ssl,
 
             /* check for available size */
             if ((ret = CheckAvailableSize(ssl, sendSz)) != 0) {
-                FreeRsaKey(&rsaKey);
+                if (!ssl->options.usingAnon_cipher)
+                    FreeRsaKey(&rsaKey);
                 return ret;
             }
 
@@ -11897,23 +12200,14 @@ int DoSessionTicket(CYASSL* ssl,
                                   ssl->buffers.serverDH_Pub.length);
             idx += ssl->buffers.serverDH_Pub.length;
 
-            /* Add signature */
-            if (IsAtLeastTLSv1_2(ssl)) {
-                output[idx++] = ssl->suites->hashAlgo;
-                output[idx++] = ssl->suites->sigAlgo;
-            }
-            /*    size */
-            c16toa((word16)sigSz, output + idx);
-            idx += LENGTH_SZ;
-
         #ifdef HAVE_FUZZER
             if (ssl->fuzzerCb)
                 ssl->fuzzerCb(ssl, output + preSigIdx, preSigSz, FUZZ_SIGNATURE,
                         ssl->fuzzerCtx);
         #endif
 
-            /* do signature */
-            {
+            /* Add signature */
+            if (!ssl->options.usingAnon_cipher) {
         #ifndef NO_OLD_TLS
             #ifdef CYASSL_SMALL_STACK
                 Md5*   md5  = NULL;
@@ -11947,6 +12241,17 @@ int DoSessionTicket(CYASSL* ssl,
             #endif
         #endif
 
+            /* Add hash/signature algo ID */
+            if (IsAtLeastTLSv1_2(ssl)) {
+                output[idx++] = ssl->suites->hashAlgo;
+                output[idx++] = ssl->suites->sigAlgo;
+            }
+
+            /* signature size */
+            c16toa((word16)sigSz, output + idx);
+            idx += LENGTH_SZ;
+
+            /* do signature */
             #ifdef CYASSL_SMALL_STACK
                 hash = (byte*)XMALLOC(FINISHED_SZ, NULL,
                                                        DYNAMIC_TYPE_TMP_BUFFER);
@@ -11976,7 +12281,7 @@ int DoSessionTicket(CYASSL* ssl,
                     ERROR_OUT(MEMORY_E, done_b);
             #endif
 
-                if ((ret = InitSha(sha) != 0))
+                if ((ret = InitSha(sha)) != 0)
                     goto done_b;
 
                 ShaUpdate(sha, ssl->arrays->clientRandom, RAN_LEN);
@@ -12115,8 +12420,7 @@ int DoSessionTicket(CYASSL* ssl,
             #endif
         #endif
 
-                if (ret < 0)
-                    return ret;
+                if (ret < 0) return ret;
             }
 
         #ifdef CYASSL_DTLS
@@ -12695,6 +12999,9 @@ int DoSessionTicket(CYASSL* ssl,
                         XMEMCPY(clSuites.hashSigAlgo, &input[i],
                             min(clSuites.hashSigAlgoSz, HELLO_EXT_SIGALGO_MAX));
                         i += clSuites.hashSigAlgoSz;
+
+                        if (clSuites.hashSigAlgoSz > HELLO_EXT_SIGALGO_MAX)
+                            clSuites.hashSigAlgoSz = HELLO_EXT_SIGALGO_MAX;
                     }
                     else
                         i += extSz;

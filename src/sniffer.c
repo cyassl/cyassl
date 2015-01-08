@@ -58,6 +58,10 @@ static INLINE word32 min(word32 a, word32 b)
 
 #endif
 
+#ifndef CYASSL_SNIFFER_TIMEOUT
+    #define CYASSL_SNIFFER_TIMEOUT 900
+    /* Cache unclosed Sessions for 15 minutes since last used */
+#endif
 
 /* Misc constants */
 enum {
@@ -75,7 +79,6 @@ enum {
     HASH_SIZE          = 499, /* Session Hash Table Rows */
     PSEUDO_HDR_SZ      = 12,  /* TCP Pseudo Header size in bytes */
     FATAL_ERROR_STATE  =  1,  /* SnifferSession fatal error state */
-    SNIFFER_TIMEOUT    = 900, /* Cache unclosed Sessions for 15 minutes */
     TICKET_HINT_LEN    = 4,   /* Session Ticket Hint length */
     EXT_TYPE_SZ        = 2,   /* Extension length */
     MAX_INPUT_SZ       = MAX_RECORD_SIZE + COMP_EXTRA + MAX_MSG_EXTRA + 
@@ -590,8 +593,8 @@ typedef struct TcpPseudoHdr {
 static int SetPassword(char* passwd, int sz, int rw, void* userdata)
 {
     (void)rw;
-    XSTRNCPY(passwd, userdata, sz);
-    return (int)XSTRLEN(userdata);
+    XSTRNCPY(passwd, (const char*)userdata, sz);
+    return (int)XSTRLEN((const char*)userdata);
 }
 
 
@@ -1099,7 +1102,8 @@ static int SetNamedPrivateKey(const char* name, const char* address, int port,
         }
         InitSnifferServer(sniffer);
 
-        XSTRNCPY(sniffer->address, address, MAX_SERVER_ADDRESS);
+        XSTRNCPY(sniffer->address, address, MAX_SERVER_ADDRESS-1);
+        sniffer->address[MAX_SERVER_ADDRESS-1] = '\0';
         sniffer->server = serverIp;
         sniffer->port = port;
 
@@ -1281,8 +1285,8 @@ static int ProcessClientKeyExchange(const byte* input, int* sslBytes,
 
     ret = InitRsaKey(&key, 0);
     if (ret == 0) 
-        ret = RsaPrivateKeyDecode(session->context->ctx->privateKey.buffer,
-                          &idx, &key, session->context->ctx->privateKey.length);
+        ret = RsaPrivateKeyDecode(session->sslServer->buffers.key.buffer,
+                          &idx, &key, session->sslServer->buffers.key.length);
     if (ret == 0) {
         int length = RsaEncryptSize(&key);
         
@@ -1772,7 +1776,8 @@ static int DoHandShake(const byte* input, int* sslBytes,
     byte type;
     int  size;
     int  ret = 0;
-    
+    int  startBytes;
+
     if (*sslBytes < HANDSHAKE_HEADER_SZ) {
         SetError(HANDSHAKE_INPUT_STR, error, session, FATAL_ERROR_STATE);
         return -1;
@@ -1782,7 +1787,8 @@ static int DoHandShake(const byte* input, int* sslBytes,
     
     input     += HANDSHAKE_HEADER_SZ;
     *sslBytes -= HANDSHAKE_HEADER_SZ;
-    
+    startBytes = *sslBytes;
+
     if (*sslBytes < size) {
         SetError(HANDSHAKE_INPUT_STR, error, session, FATAL_ERROR_STATE);
         return -1;
@@ -1836,7 +1842,9 @@ static int DoHandShake(const byte* input, int* sslBytes,
         default:
             SetError(GOT_UNKNOWN_HANDSHAKE_STR, error, session, 0);
             return -1;
-    }   
+    }
+
+    *sslBytes = startBytes - size;  /* actual bytes of full process */
 
     return ret;
 }
@@ -1896,7 +1904,7 @@ static int Decrypt(SSL* ssl, byte* output, const byte* input, word32 sz)
 
 /* Decrypt input message into output, adjust output steam if needed */
 static const byte* DecryptMessage(SSL* ssl, const byte* input, word32 sz,
-                                  byte* output, int* error)
+                                  byte* output, int* error, int* advance)
 {
     int ivExtra = 0;
 
@@ -1909,6 +1917,7 @@ static const byte* DecryptMessage(SSL* ssl, const byte* input, word32 sz,
     if (ssl->options.tls1_1 && ssl->specs.cipher_type == block) {
         output += ssl->specs.block_size;     /* go past TLSv1.1 IV */
         ivExtra = ssl->specs.block_size;
+        *advance = ssl->specs.block_size;
     }
 
     ssl->keys.padSz = ssl->specs.hash_size;
@@ -1971,7 +1980,7 @@ static void RemoveStaleSessions(void)
         session = SessionTable[i];
         while (session) {
             SnifferSession* next = session->next; 
-            if (time(NULL) >= session->lastUsed + SNIFFER_TIMEOUT) {
+            if (time(NULL) >= session->lastUsed + CYASSL_SNIFFER_TIMEOUT) {
                 TraceStaleSession();
                 RemoveSession(session, NULL, NULL, i);
             }
@@ -2626,13 +2635,15 @@ static int ProcessMessage(const byte* sslFrame, SnifferSession* session,
                           int sslBytes, byte* data, const byte* end,char* error)
 {
     const byte*       sslBegin = sslFrame;
-    const byte*       tmp;
+    const byte*       recordEnd;   /* end of record indicator */
+    const byte*       inRecordEnd; /* indictor from input stream not decrypt */
     RecordLayerHeader rh;
     int               rhSize = 0;
     int               ret;
     int               errCode = 0;
     int               decoded = 0;      /* bytes stored for user in data */
     int               notEnough;        /* notEnough bytes yet flag */
+    int               decrypted = 0;    /* was current msg decrypted */
     SSL*              ssl = (session->flags.side == CYASSL_SERVER_END) ?
                                         session->sslServer : session->sslClient;
 doMessage:
@@ -2671,13 +2682,15 @@ doMessage:
     }
     sslFrame += RECORD_HEADER_SZ;
     sslBytes -= RECORD_HEADER_SZ;
-    tmp = sslFrame + rhSize;   /* may have more than one record to process */
+    recordEnd = sslFrame + rhSize;   /* may have more than one record */
+    inRecordEnd = recordEnd;
     
     /* decrypt if needed */
     if ((session->flags.side == CYASSL_SERVER_END &&
                                                session->flags.serverCipherOn)
      || (session->flags.side == CYASSL_CLIENT_END &&
                                                session->flags.clientCipherOn)) {
+        int ivAdvance = 0;  /* TLSv1.1 advance amount */
         if (ssl->decrypt.setup != 1) {
             SetError(DECRYPT_KEYS_NOT_SETUP, error, session, FATAL_ERROR_STATE);
             return -1;
@@ -2687,21 +2700,39 @@ doMessage:
             return -1;
         }
         sslFrame = DecryptMessage(ssl, sslFrame, rhSize,
-                                  ssl->buffers.outputBuffer.buffer, &errCode);
+                                  ssl->buffers.outputBuffer.buffer, &errCode,
+                                  &ivAdvance);
+        recordEnd = sslFrame - ivAdvance + rhSize;  /* sslFrame moved so
+                                                       should recordEnd */
+        decrypted = 1;
         if (errCode != 0) {
             SetError(BAD_DECRYPT, error, session, FATAL_ERROR_STATE);
             return -1;
         }
     }
+
+doPart:
             
     switch ((enum ContentType)rh.type) {
         case handshake:
-            Trace(GOT_HANDSHAKE_STR);
-            ret = DoHandShake(sslFrame, &sslBytes, session, error);
-            if (ret != 0) {
-                if (session->flags.fatalError == 0)
-                    SetError(BAD_HANDSHAKE_STR,error,session,FATAL_ERROR_STATE);
-                return -1;
+            {
+                int startIdx = sslBytes;
+                int used;
+
+                Trace(GOT_HANDSHAKE_STR);
+                ret = DoHandShake(sslFrame, &sslBytes, session, error);
+                if (ret != 0) {
+                    if (session->flags.fatalError == 0)
+                        SetError(BAD_HANDSHAKE_STR, error, session,
+                                 FATAL_ERROR_STATE);
+                    return -1;
+                }
+
+                /* DoHandShake now fully decrements sslBytes to remaining */
+                used = startIdx - sslBytes;
+                sslFrame += used;
+                if (decrypted)
+                    sslFrame += ssl->keys.padSz;
             }
             break;
         case change_cipher_spec:
@@ -2712,7 +2743,10 @@ doMessage:
             Trace(GOT_CHANGE_CIPHER_STR);
             ssl->options.handShakeState = HANDSHAKE_DONE;
             ssl->options.handShakeDone  = 1;
-            ssl->options.gotChangeCipher = 1;
+
+            sslFrame += 1;
+            sslBytes -= 1;
+
             break;
         case application_data:
             Trace(GOT_APP_DATA_STR);
@@ -2737,21 +2771,36 @@ doMessage:
                 }
                 if (ssl->buffers.outputBuffer.dynamicFlag)
                     ShrinkOutputBuffer(ssl);
+
+                sslFrame += inOutIdx;
+                sslBytes -= inOutIdx;
             }
             break;
         case alert:
             Trace(GOT_ALERT_STR);
+            sslFrame += rhSize;
+            sslBytes -= rhSize;
             break;
         case no_type:
         default:
             SetError(GOT_UNKNOWN_RECORD_STR, error, session, FATAL_ERROR_STATE);
             return -1;
     }
-    
-    if (tmp < end) {
+
+    /* do we have another msg in record ? */
+    if (sslFrame < recordEnd) {
         Trace(ANOTHER_MSG_STR);
-        sslFrame = tmp;
-        sslBytes = (int)(end - tmp);
+        goto doPart;
+    }
+
+    /* back to input stream instead of potential decrypt buffer */
+    recordEnd = inRecordEnd;
+
+    /* do we have more records ? */
+    if (recordEnd < end) {
+        Trace(ANOTHER_MSG_STR);
+        sslFrame = recordEnd;
+        sslBytes = (int)(end - recordEnd);
         goto doMessage;
     }
     

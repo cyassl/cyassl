@@ -227,7 +227,10 @@ CYASSL_API int CyaSSL_use_RSAPrivateKey_file(CYASSL*, const char*, int);
     /* load NTRU private key blob */
 #endif
 
-CYASSL_API int CyaSSL_PemCertToDer(const char*, unsigned char*, int);
+#ifndef CYASSL_PEMCERT_TODER_DEFINED
+    CYASSL_API int CyaSSL_PemCertToDer(const char*, unsigned char*, int);
+    #define CYASSL_PEMCERT_TODER_DEFINED
+#endif
 
 #endif /* !NO_FILESYSTEM && !NO_CERTS */
 
@@ -713,6 +716,11 @@ enum { /* ssl Constants */
 
     #define PSK_TYPES_DEFINED
 #endif /* NO_PSK */
+
+
+#ifdef HAVE_ANON
+    CYASSL_API int CyaSSL_CTX_allow_anon_cipher(CYASSL_CTX*);
+#endif /* HAVE_ANON */
 
 
 /* extra begins */

@@ -312,6 +312,10 @@ typedef byte word24[3];
     #endif
 #endif
 
+#if defined(HAVE_ANON) && !defined(NO_TLS) && !defined(NO_DH) && \
+    !defined(NO_AES) && !defined(NO_SHA)
+    #define BUILD_TLS_DH_anon_WITH_AES_128_CBC_SHA
+#endif
 
 #if !defined(NO_DH) && !defined(NO_PSK) && !defined(NO_TLS)
     #ifndef NO_SHA256
@@ -493,6 +497,7 @@ typedef byte word24[3];
 enum {
     TLS_DHE_RSA_WITH_AES_256_CBC_SHA  = 0x39,
     TLS_DHE_RSA_WITH_AES_128_CBC_SHA  = 0x33,
+    TLS_DH_anon_WITH_AES_128_CBC_SHA  = 0x34,
     TLS_RSA_WITH_AES_256_CBC_SHA      = 0x35,
     TLS_RSA_WITH_AES_128_CBC_SHA      = 0x2F,
     TLS_RSA_WITH_NULL_SHA             = 0x02,
@@ -616,6 +621,12 @@ enum {
     /* Renegotiation Indication Extension Special Suite */
     TLS_EMPTY_RENEGOTIATION_INFO_SCSV        = 0xff
 };
+
+
+#ifndef CYASSL_SESSION_TIMEOUT
+    #define CYASSL_SESSION_TIMEOUT 500
+    /* default session resumption cache timeout in seconds */
+#endif
 
 
 enum Misc {
@@ -766,7 +777,6 @@ enum Misc {
     MAX_CERT_VERIFY_SZ = 1024, /* max   */
     CLIENT_HELLO_FIRST =  35,  /* Protocol + RAN_LEN + sizeof(id_len) */
     MAX_SUITE_NAME     =  48,  /* maximum length of cipher suite string */
-    DEFAULT_TIMEOUT    = 500,  /* default resumption timeout in seconds */
 
     DTLS_TIMEOUT_INIT       =  1, /* default timeout init for DTLS receive  */
     DTLS_TIMEOUT_MAX        = 64, /* default max timeout for DTLS receive */
@@ -1423,6 +1433,9 @@ struct CYASSL_CTX {
     psk_server_callback server_psk_cb;  /* server callback */
     char        server_hint[MAX_PSK_ID_LEN];
 #endif /* NO_PSK */
+#ifdef HAVE_ANON
+    byte        haveAnon;               /* User wants to allow Anon suites */
+#endif /* HAVE_ANON */
 #if defined(OPENSSL_EXTRA) || defined(HAVE_WEBSERVER)
     pem_password_cb passwd_cb;
     void*            userdata;
@@ -1784,13 +1797,13 @@ typedef struct Options {
     byte            havePeerCert;       /* do we have peer's cert */
     byte            havePeerVerify;     /* and peer's cert verify */
     byte            usingPSK_cipher;    /* whether we're using psk as cipher */
+    byte            usingAnon_cipher;   /* whether we're using an anon cipher */
     byte            sendAlertState;     /* nonblocking resume */ 
     byte            processReply;       /* nonblocking resume */
     byte            partialWrite;       /* only one msg per write call */
     byte            quietShutdown;      /* don't send close notify */
     byte            certOnly;           /* stop once we get cert */
     byte            groupMessages;      /* group handshake messages */
-    byte            gotChangeCipher;    /* received change cipher from peer */
     byte            usingNonblock;      /* set when using nonblocking socket */
     byte            saveArrays;         /* save array Memory for user get keys
                                            or psk */
@@ -1802,6 +1815,9 @@ typedef struct Options {
     psk_client_callback client_psk_cb;
     psk_server_callback server_psk_cb;
 #endif /* NO_PSK */
+#ifdef HAVE_ANON
+    byte            haveAnon;           /* User wants to allow Anon suites */
+#endif /* HAVE_ANON */
 } Options;
 
 typedef struct Arrays {
@@ -1956,6 +1972,24 @@ typedef struct DtlsMsg {
 #endif
 
 
+/* Handshake messages recevied from peer (plus change cipher */
+typedef struct MsgsReceived {
+    word16 got_hello_request:1;
+    word16 got_client_hello:1;
+    word16 got_server_hello:1;
+    word16 got_hello_verify_request:1;
+    word16 got_session_ticket:1;
+    word16 got_certificate:1;
+    word16 got_server_key_exchange:1;
+    word16 got_certificate_request:1;
+    word16 got_server_hello_done:1;
+    word16 got_certificate_verify:1;
+    word16 got_client_key_exchange:1;
+    word16 got_finished:1;
+    word16 got_change_cipher:1;
+} MsgsReceived;
+
+
 /* CyaSSL ssl type */
 struct CYASSL {
     CYASSL_CTX*     ctx;
@@ -1970,6 +2004,7 @@ struct CYASSL {
 #endif
     CipherSpecs     specs;
     Keys            keys;
+    MsgsReceived    msgsReceived;       /* peer messages received */
     int             rfd;                /* read  file descriptor */
     int             wfd;                /* write file descriptor */
     int             rflags;             /* user read  flags */
@@ -2203,7 +2238,10 @@ enum HandShakeType {
     server_hello_done   = 14,
     certificate_verify  = 15, 
     client_key_exchange = 16,
-    finished            = 20
+    finished            = 20,
+    change_cipher_hs    = 55      /* simulate unique handshake type for sanity
+                                     checks.  record layer change_cipher
+                                     conflicts with handshake finished */
 };
 
 
