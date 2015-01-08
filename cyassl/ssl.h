@@ -836,7 +836,6 @@ CYASSL_API const unsigned char* CyaSSL_X509_get_der(CYASSL_X509*, int*);
 CYASSL_API const unsigned char* CyaSSL_X509_notBefore(CYASSL_X509*);
 CYASSL_API const unsigned char* CyaSSL_X509_notAfter(CYASSL_X509*);
 CYASSL_API int CyaSSL_X509_version(CYASSL_X509*);
-CYASSL_API 
 
 CYASSL_API int CyaSSL_cmp_peer_cert_to_file(CYASSL*, const char*);
 
