@@ -33,6 +33,11 @@
 #ifdef HAVE_FIPS
     /* set NO_WRAPPERS before headers, use direct internal f()s not wrappers */
     #define FIPS_NO_WRAPPERS
+
+    #ifdef USE_WINDOWS_API
+        #pragma code_seg(".fipsA$c")
+        #pragma const_seg(".fipsB$c")
+    #endif
 #endif
 
 #include <cyassl/ctaocrypt/random.h>
