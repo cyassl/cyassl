@@ -23,6 +23,7 @@
 %{
     #include <cyassl/ssl.h>
     #include <cyassl/ctaocrypt/rsa.h>
+    #include <cyassl/ctaocrypt/pwdbased.h>
 
     /* defn adds */
     char* CyaSSL_error_string(int err);
@@ -47,6 +48,8 @@ int            CyaSSL_swig_connect(CYASSL*, const char* server, int port);
 int         RsaSSL_Sign(const unsigned char* in, int inLen, unsigned char* out, int outLen, RsaKey* key, RNG* rng);
 
 int         RsaSSL_Verify(const unsigned char* in, int inLen, unsigned char* out, int outLen, RsaKey* key);
+
+int         PKCS12_PBKDF(unsigned char* output, const unsigned char* passwd, int pLen, const unsigned char* salt, int sLen, int iterations, int kLen, int hashType, int purpose);
 
 RNG* GetRng(void);
 RsaKey* GetRsaPrivateKey(const char* file);
