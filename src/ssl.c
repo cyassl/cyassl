@@ -729,7 +729,7 @@ int CyaSSL_UseSecureRenegotiation(CYASSL* ssl)
 
     if (ret == SSL_SUCCESS) {
         TLSX* extension = TLSX_Find(ssl->extensions, SECURE_RENEGOTIATION);
-        
+
         if (extension)
             ssl->secure_renegotiation = (SecureRenegotiation*)extension->data;
     }
@@ -2006,7 +2006,7 @@ int PemToDer(const unsigned char* buff, long longSz, int type,
 		case CERTREQ_TYPE:  header= BEGIN_CERT_REQ; footer= END_CERT_REQ; break;
 		default:            header= BEGIN_RSA_PRIV; footer= END_RSA_PRIV; break;
 	}
-	
+
 	switch (type) {
 		case CA_TYPE:   dynamicType = DYNAMIC_TYPE_CA;   break;
 		case CERT_TYPE: dynamicType = DYNAMIC_TYPE_CERT; break;
@@ -2017,7 +2017,7 @@ int PemToDer(const unsigned char* buff, long longSz, int type,
     /* find header */
 	for (;;) {
 		headerEnd = XSTRNSTR((char*)buff, header, sz);
-		
+
 		if (headerEnd || type != PRIVATEKEY_TYPE) {
 			break;
 		} else if (header == BEGIN_RSA_PRIV) {
@@ -2049,7 +2049,7 @@ int PemToDer(const unsigned char* buff, long longSz, int type,
 
 	if (type == PRIVATEKEY_TYPE) {
 		if (eccKey)
-			*eccKey = header == BEGIN_EC_PRIV;		
+			*eccKey = header == BEGIN_EC_PRIV;
 	}
 
 #if defined(OPENSSL_EXTRA) || defined(HAVE_WEBSERVER)
@@ -2384,7 +2384,7 @@ static int ProcessBuffer(CYASSL_CTX* ctx, const unsigned char* buff,
         password = (char*)XMALLOC(80, NULL, DYNAMIC_TYPE_TMP_BUFFER);
         key      = (byte*)XMALLOC(AES_256_KEY_SIZE, NULL,
                                                    DYNAMIC_TYPE_TMP_BUFFER);
-        iv       = (byte*)XMALLOC(AES_IV_SIZE, NULL, 
+        iv       = (byte*)XMALLOC(AES_IV_SIZE, NULL,
                                                    DYNAMIC_TYPE_TMP_BUFFER);
 
         if (password == NULL || key == NULL || iv == NULL) {
@@ -3636,7 +3636,7 @@ static int CyaSSL_SetTmpDH_buffer_wrapper(CYASSL_CTX* ctx, CYASSL* ssl,
             ret = PemToDer(buf, sz, DH_PARAM_TYPE, &der, ctx->heap, NULL,NULL);
             weOwnDer = 1;
         }
-        
+
         if (ret == 0) {
             if (DhParamsLoad(der.buffer, der.length, p, &pSz, g, &gSz) < 0)
                 ret = SSL_BAD_FILETYPE;
@@ -8694,6 +8694,7 @@ CYASSL_X509* CyaSSL_X509_load_certificate_file(const char* fname, int format)
     int   ret;
     long  sz = 0;
     XFILE file;
+    int cert_null = 1;
 
     CYASSL_X509* x509 = NULL;
     buffer der;
@@ -8800,8 +8801,9 @@ CYASSL_X509* CyaSSL_X509_load_certificate_file(const char* fname, int format)
     #ifdef CYASSL_SMALL_STACK
         cert = (DecodedCert*)XMALLOC(sizeof(DecodedCert), NULL,
                                                        DYNAMIC_TYPE_TMP_BUFFER);
-        if (cert != NULL)
+        cert_null = (cert != NULL);
     #endif
+        if (cert_null)
         {
             InitDecodedCert(cert, der.buffer, der.length, NULL);
             if (ParseCertRelative(cert, CERT_TYPE, 0, NULL) == 0) {
@@ -10615,8 +10617,8 @@ int CyaSSL_BN_rand(CYASSL_BIGNUM* bn, int bits, int top, int bottom)
             if (mp_read_unsigned_bin((mp_int*)bn->internal,buff,len) != MP_OKAY)
                 CYASSL_MSG("mp read bin failed");
             else
-                ret = SSL_SUCCESS;        
-        }        
+                ret = SSL_SUCCESS;
+        }
     }
 
 #ifdef CYASSL_SMALL_STACK
@@ -10940,7 +10942,7 @@ int CyaSSL_DH_generate_key(CYASSL_DH* dh)
        else {
             if (dh->pub_key)
                 CyaSSL_BN_free(dh->pub_key);
-   
+
             dh->pub_key = CyaSSL_BN_new();
             if (dh->pub_key == NULL) {
                 CYASSL_MSG("Bad DH new pub");
@@ -11504,7 +11506,7 @@ int CyaSSL_RSA_sign(int type, const unsigned char* m,
                            unsigned int mLen, unsigned char* sigRet,
                            unsigned int* sigLen, CYASSL_RSA* rsa)
 {
-    word32 outLen;    
+    word32 outLen;
     word32 signSz;
     RNG*   rng        = NULL;
     int    ret        = 0;
@@ -12130,14 +12132,16 @@ CYASSL_X509* CyaSSL_get_chain_X509(CYASSL_X509_CHAIN* chain, int idx)
 #else
     DecodedCert  cert[1];
 #endif
+    int cert_null;
 
     CYASSL_ENTER("CyaSSL_get_chain_X509");
     if (chain != NULL) {
     #ifdef CYASSL_SMALL_STACK
         cert = (DecodedCert*)XMALLOC(sizeof(DecodedCert), NULL,
                                                        DYNAMIC_TYPE_TMP_BUFFER);
-        if (cert != NULL)
+        cert_null = (cert != NULL);
     #endif
+        if (cert_null)
         {
             InitDecodedCert(cert, chain->certs[idx].buffer,
                                   chain->certs[idx].length, NULL);
@@ -12398,4 +12402,3 @@ void* CyaSSL_GetRsaDecCtx(CYASSL* ssl)
     /* Used by autoconf to see if cert service is available */
     void CyaSSL_cert_service(void) {}
 #endif
-
