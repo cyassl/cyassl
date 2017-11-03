@@ -85,9 +85,17 @@ CYASSL_API int RsaPublicKeyDecode(const byte* input, word32* inOutIdx, RsaKey*,
 CYASSL_API int RsaPublicKeyDecodeRaw(const byte* n, word32 nSz, const byte* e,
                                      word32 eSz, RsaKey* key);
 CYASSL_API int RsaFlattenPublicKey(RsaKey*, byte*, word32*, byte*, word32*);
+CYASSL_API int RsaExportKey(RsaKey* key,
+                            byte* e, word32* eSz, byte* n, word32* nSz,
+                            byte* d, word32* dSz, byte* p, word32* pSz,
+                            byte* q, word32* qSz);
 
 #ifdef CYASSL_KEY_GEN
     CYASSL_API int MakeRsaKey(RsaKey* key, int size, long e, RNG* rng);
+    CYASSL_API int CheckProbablePrime(const byte* pRaw, word32 pRawSz,
+                                      const byte* qRaw, word32 qRawSz,
+                                      const byte* eRaw, word32 eRawSz,
+                                      int nlen, int* isPrime);
     CYASSL_API int RsaKeyToDer(RsaKey*, byte* output, word32 inLen);
 #endif
 
@@ -120,6 +128,20 @@ CYASSL_API int RsaFlattenPublicKey(RsaKey*, byte*, word32*, byte*, word32*);
                                             RsaKey*, word32);
     CYASSL_API int RsaPublicKeyDecode_fips(const byte* input, word32* inOutIdx,
                                            RsaKey*, word32);
+    CYASSL_API int RsaFlattenPublicKey_fips(RsaKey*, byte* e, word32* eSz,
+                                                     byte* n, word32* nSz);
+    CYASSL_API int RsaExportKey_fips(RsaKey* key,
+                                     byte* e, word32* eSz, byte* n, word32* nSz,
+                                     byte* d, word32* dSz, byte* p, word32* pSz,
+                                     byte* q, word32* qSz);
+	#if defined(CYASSL_KEY_GEN) && \
+		defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2)
+        CYASSL_API int MakeRsaKey_fips(RsaKey* key, int size, long e, RNG* rng);
+        CYASSL_API int CheckProbablePrime_fips(const byte* pRaw, word32 pRawSz,
+                                               const byte* qRaw, word32 qRawSz,
+                                               const byte* eRaw, word32 eRawSz,
+                                               int nlen, int* isPrime);
+    #endif /* CYASSL_KEY_GEN HAVE_FIPS v2 */
     #ifndef FIPS_NO_WRAPPERS
         /* if not impl or fips.c impl wrapper force fips calls if fips build */
         #define InitRsaKey              InitRsaKey_fips 
@@ -131,6 +153,13 @@ CYASSL_API int RsaFlattenPublicKey(RsaKey*, byte*, word32*, byte*, word32*);
         #define RsaSSL_VerifyInline     RsaSSL_VerifyInline_fips
         #define RsaSSL_Verify           RsaSSL_Verify_fips
         #define RsaEncryptSize          RsaEncryptSize_fips
+        #define RsaFlattenPublicKey     RsaFlattenPublicKey_fips
+        #define RsaExportKey            RsaExportKey_fips
+	    #if defined(CYASSL_KEY_GEN) && \
+			defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2)
+            #define MakeRsaKey          MakeRsaKey_fips
+            #define CheckProbablePrime  CheckProbablePrime_fips
+        #endif /* CYASSL_KEY_GEN HAVE_FIPS v2 */
         /* no implicit KeyDecodes since in asn.c (not rsa.c) */
     #endif /* FIPS_NO_WRAPPERS */
 
