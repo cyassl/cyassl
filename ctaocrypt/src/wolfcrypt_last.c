@@ -37,10 +37,11 @@
 
 
 /* last function of text/code segment */
+/* this function needs to be different than wolfCrypt_FIPS_first() */
 int wolfCrypt_FIPS_last(void);
 int wolfCrypt_FIPS_last(void)
 {
-    return 0;
+    return 1;
 }
 
 
