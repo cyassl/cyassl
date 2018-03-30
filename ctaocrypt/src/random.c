@@ -54,15 +54,17 @@
     #endif
 #endif /* HAVE_HASHDRBG || NO_RC4 */
 
-#if defined(USE_WINDOWS_API)
+#if defined(USE_WINDOWS_API) && !defined(WOLFSSL_SGX)
     #ifndef _WIN32_WINNT
         #define _WIN32_WINNT 0x0400
     #endif
     #include <windows.h>
     #include <wincrypt.h>
 #else
-    #if !defined(NO_DEV_RANDOM) && !defined(CYASSL_MDK_ARM) \
-                                && !defined(CYASSL_IAR_ARM)
+    #ifdef WOLFSSL_SGX
+        #include <sgx_trts.h>
+    #elif !defined(NO_DEV_RANDOM) && !defined(CYASSL_MDK_ARM) \
+                             && !defined(CYASSL_IAR_ARM)
             #include <fcntl.h>
         #ifndef EBSNET
             #include <unistd.h>
@@ -740,7 +742,7 @@ static void CaviumRNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
 #endif /* HAVE_HASHDRBG || NO_RC4 */
 
 
-#if defined(USE_WINDOWS_API)
+#if defined(USE_WINDOWS_API) && !defined(WOLFSSL_SGX)
 
 
 int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
@@ -1056,6 +1058,20 @@ int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 }
 */
 
+#elif defined(WOLFSSL_SGX)
+
+int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+{
+    int ret = !SGX_SUCCESS;
+    int i, read_max = 10;
+
+    for (i = 0; i < read_max && ret != SGX_SUCCESS; i++) {
+        ret = sgx_read_rand(output, sz);
+    }
+
+    (void)os;
+    return (ret == SGX_SUCCESS) ? 0 : 1;
+}
 
 #else /* !USE_WINDOWS_API && !HAVE_RPT_SYS && !MICRIUM && !NO_DEV_RANDOM */
 
