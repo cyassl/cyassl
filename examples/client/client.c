@@ -117,6 +117,7 @@ static void NonBlockingSSL_Connect(CYASSL* ssl)
 
 static void Usage(void)
 {
+    printf("%s\n",      PACKAGE_STRING);
     printf("client "    LIBCYASSL_VERSION_STRING
            " NOTE: All files relative to CyaSSL home dir\n");
     printf("-?          Help, print this usage\n");

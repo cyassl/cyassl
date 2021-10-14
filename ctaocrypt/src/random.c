@@ -793,6 +793,8 @@ int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 
 #elif defined(MBED)
 
+#warning "write a real random seed!!!!, just for testing now"
+
 /* write a real one !!!, just for testing board */
 int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 {

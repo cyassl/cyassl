@@ -60,6 +60,12 @@ CYASSL_LOCAL
 void   ByteReverseWords64(word64*, const word64*, word32);
 #endif /* WORD64_AVAILABLE */
 
+CYASSL_LOCAL
+void ForceZero(void*, word32);
+
+CYASSL_LOCAL
+int ConstantCompare(const byte*, const byte*, int);
+
 #endif /* NO_INLINE */
 
 

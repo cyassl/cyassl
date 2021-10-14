@@ -1,3 +1,7 @@
+# Deprecation Notice for CyaSSL 
+
+This repository is no longer maintained. The CyaSSL library has been moved to https://github.com/wolfssl/wolfssl. See the new wolfSSL library, which includes a compatibility layer for CyaSSL/CTaoCrypt.
+
 # Notes - Please read 
 
 ## Note 1
