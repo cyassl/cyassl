@@ -114,6 +114,7 @@ static void NonBlockingSSL_Accept(SSL* ssl)
 
 static void Usage(void)
 {
+    printf("%s\n",      PACKAGE_STRING);
     printf("server "    LIBCYASSL_VERSION_STRING
            " NOTE: All files relative to CyaSSL home dir\n");
     printf("-?          Help, print this usage\n");

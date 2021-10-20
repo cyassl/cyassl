@@ -34,6 +34,20 @@
 #endif
 
 
+/* Deprecation Notice - This repository is no longer maintained. 
+ * The CyaSSL library has been moved to https://github.com/wolfssl/wolfssl. 
+ * See the new wolfSSL library, which includes a compatibility layer for 
+ * CyaSSL/CTaoCrypt.*/
+#ifndef NO_WARN_DEPRECATED
+    #ifndef _MSC_VER
+        #warning "The CyaSSL library has been deprecated and replaced by wolfSSL. " \
+            "See https://github.com/wolfSSL/wolfssl"
+    #else
+        #pragma message("Warning: The CyaSSL library has been deprecated and replaced by wolfSSL. " \
+            "See https://github.com/wolfSSL/wolfssl")
+    #endif
+#endif
+
 
 #ifdef SINGLE_THREADED
 
